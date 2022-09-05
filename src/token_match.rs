@@ -337,7 +337,6 @@ impl TokenMatcher {
             items.push(item);
         }
 
-        println!("{items:?}");
         items
     }
 
