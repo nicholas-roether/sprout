@@ -341,7 +341,7 @@ impl TokenMatcher {
         items
     }
 
-    fn compare(&self, string: &str) -> Option<usize> {
+    pub fn compare(&self, string: &str) -> Option<usize> {
         return self.compare_part(string);
     }
 }
