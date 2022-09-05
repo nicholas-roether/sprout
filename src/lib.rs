@@ -1,3 +1,5 @@
+mod token_match;
+
 #[cfg(test)]
 mod tests {
     #[test]
