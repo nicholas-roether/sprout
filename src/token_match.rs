@@ -63,10 +63,11 @@ impl MatchItem for RepeatMatchItem {
     }
 }
 
-trait Choice {
+trait Choice where Self: Debug {
     fn check(&self, char: char) -> bool;
 }
 
+#[derive(Debug)]
 struct ExactChoice {
     char: char
 }
@@ -84,20 +85,104 @@ impl Choice for ExactChoice {
 }
 
 #[derive(Debug)]
+struct RangeChoice {
+    from: char,
+    to: char
+}
+
+impl RangeChoice {
+    fn new(from: char, to: char) -> Self {
+        if to < from {
+            panic!("End of range was smaller than its start");
+        }
+        RangeChoice { from, to }
+    }
+}
+
+impl Choice for RangeChoice {
+    fn check(&self, char: char) -> bool {
+        return self.from <= char && char <= self.to;
+    }
+}
+
+#[derive(Debug)]
 struct ChoiceMatcher {
-    choices: Vec<char>
+    choices: Vec<Box<dyn Choice>>
+}
+
+#[derive(PartialEq, Eq)]
+enum ChoiceParseState {
+    Default,
+    Range
 }
 
 impl ChoiceMatcher {
     fn new(expr: &str) -> Self {
-        ChoiceMatcher { choices: expr.chars().collect() }
+        ChoiceMatcher { choices: Self::parse(expr) }
+    }
+
+    fn parse(expr: &str) -> Vec<Box<dyn Choice>> {
+        let mut choices: Vec<Box<dyn Choice>> = vec![];
+        let mut state = ChoiceParseState::Default;
+        let mut last: Option<char> = None;
+        let mut escape = false;
+
+        for char in expr.chars() {
+            if !escape && char == '\\' {
+                escape = true;
+                continue;
+            }
+
+            match state {
+                ChoiceParseState::Default => {
+                    if !escape {
+                        match char {
+                            '-' => {
+                                state = ChoiceParseState::Range;
+                                continue;
+                            }
+                            _ => ()
+                        }
+                    }
+                    last = Some(char);
+                    choices.push(Box::new(ExactChoice::new(char)))
+                }
+                ChoiceParseState::Range => {
+                    choices.push(Box::new(
+                        RangeChoice::new(
+                            last.expect("Missing start of range"),
+                            char
+                        )
+                    ));
+                    last = None;
+                    state = ChoiceParseState::Default;
+                }
+            }
+
+            if escape {
+                escape = false;
+            }
+        }
+
+        if escape {
+            panic!("Incomplete escape sequence");
+        }
+        if state == ChoiceParseState::Range {
+            panic!("Missing end of range");
+        }
+
+        choices
     }
 }
 
 impl MatchItem for ChoiceMatcher {
     fn compare_part(&self, string: &str) -> Option<usize> {
+        let char = string.chars().next();
+        if char == None { return None; }
+        let char = char.unwrap();
+
         for choice in &self.choices {
-            if string.starts_with(&[*choice]) {
+            if choice.check(char) {
                 return Some(1);
             }
         }
@@ -139,7 +224,7 @@ impl TokenMatcher {
         let mut escape = false;
 
         for char in expr.chars() {
-            if mode != TokenParseMode::SubExpr && !escape && char == '\\' {
+            if !escape && char == '\\' {
                 escape = true;
                 continue;
             }
@@ -201,6 +286,7 @@ impl TokenMatcher {
                     current_item = Some(Box::new(ExactMatchItem::single(char)))
                 }
                 TokenParseMode::SubExpr => {
+                    if escape { buffer += "\\"; }
                     match char {
                         '(' => depth += 1,
                         ')' => {
@@ -218,11 +304,15 @@ impl TokenMatcher {
                     buffer += char.to_string().as_str()
                 }
                 TokenParseMode::Choice => {
-                    if !escape && char == ']' {
-                        current_item = Some(Box::new(ChoiceMatcher::new(buffer.as_str())));
-                        buffer.clear();
-                        mode = TokenParseMode::Default;
-                        continue;
+                    if escape {
+                        if char != ']' { buffer += "\\"; }
+                    } else {
+                        if char == ']' {
+                            current_item = Some(Box::new(ChoiceMatcher::new(buffer.as_str())));
+                            buffer.clear();
+                            mode = TokenParseMode::Default;
+                            continue;
+                        }
                     }
                     buffer += char.to_string().as_str()
                 }
@@ -233,6 +323,9 @@ impl TokenMatcher {
             }
         }
 
+        if escape {
+            panic!("Incomplete escape sequence");
+        }
         if mode == TokenParseMode::SubExpr {
             panic!("Unmatched opening parenthesis");
         }
@@ -356,7 +449,7 @@ mod tests {
         assert_eq!(matcher.compare("v"), Some(1), "'[a-z]' should match 'v'");
         assert_eq!(matcher.compare("s"), Some(1), "'[a-z]' should match 's'");
         assert_eq!(matcher.compare("b"), Some(1), "'[a-z]' should match 'b'");
-        assert_eq!(matcher.compare("A"), Some(1), "'[a-z]' should not match 'A'");
-        assert_eq!(matcher.compare("-"), Some(1), "'[a-z]' should match '-'");
+        assert_eq!(matcher.compare("A"), None, "'[a-z]' should not match 'A'");
+        assert_eq!(matcher.compare("-"), None, "'[a-z]' should not match '-'");
     }
 }
