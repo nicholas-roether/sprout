@@ -1,114 +1,269 @@
-use std::{collections::{HashMap}};
+use std::fmt::Debug;
 
-#[derive(Clone)]
-struct TokenMatcherState {
-    eval_index: usize,
-    cmp_index: usize,
-    loop_stack: Vec<usize>,
-    skip: bool
+trait MatchItem where Self: Debug {
+    fn compare_part(&self, string: &str) -> Option<usize>;
 }
 
-impl TokenMatcherState {
-    fn new() -> Self {
-        TokenMatcherState {
-            eval_index: 0,
-            cmp_index: 0,
-            loop_stack: vec![],
-            skip: false
+#[derive(Debug)]
+struct ExactMatchItem {
+    exact: String
+}
+
+impl ExactMatchItem {
+    fn new(exact: &str) -> Self {
+        ExactMatchItem { exact: String::from(exact) }
+    }
+
+    fn single(char: char) -> Self {
+        ExactMatchItem { exact: char.to_string() }
+    }
+}
+
+impl MatchItem for ExactMatchItem {
+    fn compare_part(&self, string: &str) -> Option<usize> {
+        if string.starts_with(self.exact.as_str()) {
+            return Some(self.exact.len());
         }
+        None
     }
 }
 
-struct TokenMatcherBranches {
-    branches: HashMap<u32, TokenMatcherState>,
-    next_branch_id: u32
+#[derive(Debug)]
+struct RepeatMatchItem {
+    item: Box<dyn MatchItem>,
+    min_reps: u32,
+    max_reps: Option<u32>
 }
 
-impl TokenMatcherBranches {
-    fn new() -> Self {
-        TokenMatcherBranches { branches: HashMap::new(), next_branch_id: 0 }
-    }
-
-    fn spawn_branch(&mut self, state: TokenMatcherState) {
-        self.branches.insert(self.next_branch_id, state);
-        self.next_branch_id += 1;
-    }
-
-    fn get_branch_state(&mut self, branch: u32) -> Option<&TokenMatcherState> {
-        self.branches.get(&branch)
-    }
-
-    fn terminate_branch(&mut self, branch: u32) {
-        self.branches.remove(&branch);
-    }
-
-    fn running(&self) -> bool {
-        self.branches.len() > 0
-    }
-
-    fn branch_ids(&self) -> Vec<u32> {
-        self.branches.keys().map(|b| *b).collect()
-    }
-
-    fn state(&self, branch: u32) -> Option<&TokenMatcherState> {
-        self.branches.get(&branch)
-    }
-
-    fn state_mut(&mut self, branch: u32) -> Option<&mut TokenMatcherState> {
-        self.branches.get_mut(&branch)
+impl RepeatMatchItem {
+    fn new(item: Box<dyn MatchItem>) -> Self {
+        RepeatMatchItem { item, min_reps: 0, max_reps: None }
     }
 }
 
+impl MatchItem for RepeatMatchItem {
+    fn compare_part(&self, string: &str) -> Option<usize> {
+        let mut num_reps: u32 = 0;
+        let mut size: usize = 0;
+        loop {
+            if let Some(max) = self.max_reps {
+                if num_reps >= max { break; } 
+            }
+            if let Some(part_length) = self.item.compare_part(&string[size..]) {
+                size += part_length
+            } else {
+                break;
+            }
+            num_reps += 1;
+        }
+        if num_reps < self.min_reps {
+            return None;
+        }
+        Some(size)
+    }
+}
+
+trait Choice {
+    fn check(&self, char: char) -> bool;
+}
+
+struct ExactChoice {
+    char: char
+}
+
+impl ExactChoice {
+    fn new(char: char) -> Self {
+        ExactChoice { char }
+    }
+}
+
+impl Choice for ExactChoice {
+    fn check(&self, char: char) -> bool {
+        char == self.char
+    }
+}
+
+#[derive(Debug)]
+struct ChoiceMatcher {
+    choices: Vec<char>
+}
+
+impl ChoiceMatcher {
+    fn new(expr: &str) -> Self {
+        ChoiceMatcher { choices: expr.chars().collect() }
+    }
+}
+
+impl MatchItem for ChoiceMatcher {
+    fn compare_part(&self, string: &str) -> Option<usize> {
+        for choice in &self.choices {
+            if string.starts_with(&[*choice]) {
+                return Some(1);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Debug)]
 pub struct TokenMatcher {
-    pub expr: String,
+    items: Vec<Box<dyn MatchItem>>
+}
+
+#[derive(PartialEq, Eq)]
+enum TokenParseMode {
+    Default,
+    SubExpr,
+    Choice
 }
 
 impl TokenMatcher {
     pub fn new(expr: &str) -> Self {
         TokenMatcher {
-            expr: String::from(expr),
+            items: Self::parse(expr)
         }
     }
 
-    pub fn compare(&mut self, string: &str) -> Option<usize> {
-        let mut branches = TokenMatcherBranches::new();
-        branches.spawn_branch(TokenMatcherState::new());
+    fn group(items: Vec<Box<dyn MatchItem>>) -> Self {
+        TokenMatcher { items }
+    }
 
-        while branches.running() {
-            for branch in branches.branch_ids() {
-                let mut state = branches.state_mut(branch).unwrap();
-                let eval_char = self.expr.chars().nth(state.eval_index).unwrap_or('\0');
-                let cmp_char = string.chars().nth(state.eval_index).unwrap_or('\0');
-                if eval_char == '\0' { return Some(state.cmp_index) }
-                if cmp_char == '\0' {
-                    branches.terminate_branch(branch);
-                    continue;
-                }
+    fn parse(expr: &str) -> Vec<Box<dyn MatchItem>> {
+        const SPECIAL_CHARS: &str = "*";
 
-                match eval_char {
-                    '*' => {
-                        let mut loop_branch_state = state.clone();
-                        loop_branch_state.loop_stack.push(state.eval_index);
-                        state.skip = true;
+        let mut items: Vec<Box<dyn MatchItem>> = vec![];
+        let mut current_item: Option<Box<dyn MatchItem>> = None;
+        let mut mode = TokenParseMode::Default;
+        let mut buffer = String::new();
+        let mut depth = 0;
+        let mut escape = false;
 
-                        branches.spawn_branch(loop_branch_state);
+        for char in expr.chars() {
+            if mode != TokenParseMode::SubExpr && !escape && char == '\\' {
+                escape = true;
+                continue;
+            }
 
-                    }
-                    _ => {
-                        if eval_char != cmp_char {
-                            branches.terminate_branch(branch);
-                            continue;
-                        } else {
-                            state.cmp_index += 1;
+            match mode {
+                TokenParseMode::Default => {
+                    if !escape {
+                        match char {
+                            '*' => {
+                                current_item = Some(Box::new(RepeatMatchItem::new(
+                                    current_item.expect("Invalid placement for '*'")
+                                )));
+                                continue;
+                            }
+                            '+' => {
+                                let mut repeat_item = RepeatMatchItem::new(
+                                    current_item.expect("Invalid placement for '*'")
+                                );
+                                repeat_item.min_reps = 1;
+                                current_item = Some(Box::new(repeat_item));
+                                continue;
+                            }
+                            '?' => {
+                                let mut repeat_item = RepeatMatchItem::new(
+                                    current_item.expect("Invalid placement for '*'")
+                                );
+                                repeat_item.max_reps = Some(1);
+                                current_item = Some(Box::new(repeat_item));
+                                continue;
+                            }
+                            '(' => {
+                                if let Some(item) = current_item {
+                                    items.push(item);
+                                }
+                                current_item = None;
+                                mode = TokenParseMode::SubExpr;
+                                continue;
+                            }
+                            ')' => {
+                                panic!("Unmatched closing parenthesis");
+                            },
+                            '[' => {
+                                if let Some(item) = current_item {
+                                    items.push(item);
+                                }
+                                current_item = None;
+                                mode = TokenParseMode::Choice;
+                                continue;
+                            },
+                            ']' => {
+                                panic!("Unmatched closing square bracket");
+                            }
+                            _ => ()
                         }
                     }
+                    if let Some(item) = current_item {
+                        items.push(item);
+                    }
+                    current_item = Some(Box::new(ExactMatchItem::single(char)))
                 }
+                TokenParseMode::SubExpr => {
+                    match char {
+                        '(' => depth += 1,
+                        ')' => {
+                            if depth > 0 {
+                                depth -= 1;
+                            } else {
+                                current_item = Some(Box::new(TokenMatcher::new(buffer.as_str())));
+                                buffer.clear();
+                                mode = TokenParseMode::Default;
+                                continue;
+                            }
+                        }
+                        _ => ()
+                    }
+                    buffer += char.to_string().as_str()
+                }
+                TokenParseMode::Choice => {
+                    if !escape && char == ']' {
+                        current_item = Some(Box::new(ChoiceMatcher::new(buffer.as_str())));
+                        buffer.clear();
+                        mode = TokenParseMode::Default;
+                        continue;
+                    }
+                    buffer += char.to_string().as_str()
+                }
+            }
 
-                branches.state_mut(branch).unwrap().eval_index += 1;
+            if escape {
+                escape = false;
             }
         }
 
-        None
+        if mode == TokenParseMode::SubExpr {
+            panic!("Unmatched opening parenthesis");
+        }
+        if mode == TokenParseMode::Choice {
+            panic!("Unmatched opening square bracket");
+        }
+
+        if let Some(item) = current_item {
+            items.push(item);
+        }
+
+        println!("{items:?}");
+        items
+    }
+
+    fn compare(&self, string: &str) -> Option<usize> {
+        return self.compare_part(string);
+    }
+}
+
+impl MatchItem for TokenMatcher {
+    fn compare_part(&self, string: &str) -> Option<usize> {
+        let mut size: usize = 0;
+        for item in &self.items {
+            if let Some(part_length) = item.compare_part(&string[size..]) {
+                size += part_length;
+            } else {
+                return None;
+            }
+        }
+        Some(size)
     }
 }
 
@@ -118,34 +273,90 @@ mod tests {
 
     #[test]
     fn can_match_exact() {
-        let mut matcher = TokenMatcher::new("abc");
+        let matcher = TokenMatcher::new("abc");
+
         assert_eq!(matcher.compare("abc"), Some(3), "'abc' should match first 3 chars in 'abc'");
-
-        let mut matcher = TokenMatcher::new("abc");
         assert_eq!(matcher.compare("abcdefg"), Some(3), "'abc' should match first 3 chars in 'abcdefg'");
-
-        let mut matcher = TokenMatcher::new("abc");
         assert_eq!(matcher.compare("abedefg"), None, "'abc' should not match in 'abedefg'");
     }
 
     #[test]
     fn can_repeat_single() {
-        let mut matcher = TokenMatcher::new("a*b");
-        assert_eq!(matcher.compare("abbbbbc"), Some(6), "'a*b' should match first 6 chars in 'abbbbbc'");
-
-        let mut matcher = TokenMatcher::new("a*b");
-        assert_eq!(matcher.compare("acfds"), Some(1), "'a*b' should match first char in 'acfds'");
-
-        let mut matcher = TokenMatcher::new("a*b");
-        assert_eq!(matcher.compare("cgfds"), None, "'a*b' should not match in 'cgfds'");
+        let matcher = TokenMatcher::new("ab*");
+        
+        assert_eq!(matcher.compare("abbbbbc"), Some(6), "'ab*' should match first 6 chars in 'abbbbbc'");
+        assert_eq!(matcher.compare("acfds"), Some(1), "'ab*' should match first char in 'acfds'");
+        assert_eq!(matcher.compare("cgfds"), None, "'ab*' should not match in 'cgfds'");
     }
 
     #[test]
     fn can_repeat_multiple() {
-        let mut matcher = TokenMatcher::new("a*(bc)");
-        assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(9), "'a*(bc)' should match first 6 chars in 'abcbcbcbcefdfs'");
+        let matcher = TokenMatcher::new("a(bc)*");
 
-        let mut matcher = TokenMatcher::new("a*(bc)");
-        assert_eq!(matcher.compare("bcbcbcbcefdfs"), None, "'a*(bc)' not match 'bcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(9), "'a(bc)*' should match first 9 chars in 'abcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("bcbcbcbcefdfs"), None, "'a(bc)*' should not match 'bcbcbcbcefdfs'");
+    }
+
+    #[test]
+    fn can_repeat_multiple_plus() {
+        let matcher = TokenMatcher::new("a(bc)+");
+
+        assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(9), "'a(bc)+' should match first 9 chars in 'abcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("bcbcbcbcefdfs"), None, "'a(bc)+' not match 'bcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("aefdfs"), None, "'a(bc)+' should not match 'aefdfs'");
+    }
+
+    #[test]
+    fn optional_works() {
+        let matcher = TokenMatcher::new("a(bc)?");
+
+        assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(3), "'a(bc)?' should match first 3 chars in 'abcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("adbcbcbcbcefdfs"), Some(1), "'a(bc)?' should match the first character of 'adbcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("gdfefdfs"), None, "'a(bc)?' not match 'gdfefdfs'");
+    }
+
+    #[test]
+    fn choice_works() {
+        let matcher = TokenMatcher::new("a[bc]");
+
+        assert_eq!(matcher.compare("ab534"), Some(2), "'a[bc]' should match the first 2 chars in 'ab534'");
+        assert_eq!(matcher.compare("ac534"), Some(2), "'a[bc]' should match the first 2 chars in 'ac534'");
+        assert_eq!(matcher.compare("a534"), None, "'a[bc]' should not match 'a534'");
+    }
+
+    #[test]
+    fn repeated_choice_works() {
+        let matcher = TokenMatcher::new("a[bc]*");
+
+        assert_eq!(matcher.compare("abbcbccccbbc453"), Some(12), "'a[bc]*' should match the first 12 chars in 'abbcbccccbbc453'");
+    }
+
+    #[test]
+    fn escape_works() {
+        let matcher = TokenMatcher::new("\\(\\(\\[\\*");
+
+        assert_eq!(matcher.compare("(([*"), Some(4), "'\\(\\(\\[\\*' should match the first 4 chars in '(([*'");
+        assert_eq!(matcher.compare("(([a"), None, "'\\(\\(\\[\\*' should not match '(([a'");
+    }
+
+    #[test]
+    fn escape_in_choice_works() {
+        let matcher = TokenMatcher::new("[a\\-\\]]");
+
+        assert_eq!(matcher.compare("a"), Some(1), "'[a\\-\\]]' should match 'a'");
+        assert_eq!(matcher.compare("]"), Some(1), "'[a\\-\\]]' should match ']'");
+        assert_eq!(matcher.compare("-"), Some(1), "'[a\\-\\]]' should match '-'");
+        assert_eq!(matcher.compare("bet46r"), None, "'[a\\-\\]]' should not match 'bet46r'");
+    }
+
+    #[test]
+    fn ranges_work() {
+        let matcher = TokenMatcher::new("[a-z]");
+
+        assert_eq!(matcher.compare("v"), Some(1), "'[a-z]' should match 'v'");
+        assert_eq!(matcher.compare("s"), Some(1), "'[a-z]' should match 's'");
+        assert_eq!(matcher.compare("b"), Some(1), "'[a-z]' should match 'b'");
+        assert_eq!(matcher.compare("A"), Some(1), "'[a-z]' should not match 'A'");
+        assert_eq!(matcher.compare("-"), Some(1), "'[a-z]' should match '-'");
     }
 }
