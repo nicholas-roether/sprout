@@ -1,10 +1,11 @@
+use std::{collections::{HashMap}};
+
+#[derive(Clone)]
 struct TokenMatcherState {
     eval_index: usize,
     cmp_index: usize,
     loop_stack: Vec<usize>,
-    escape: bool,
-    optional: bool,
-    token_length: usize,
+    skip: bool
 }
 
 impl TokenMatcherState {
@@ -13,86 +14,101 @@ impl TokenMatcherState {
             eval_index: 0,
             cmp_index: 0,
             loop_stack: vec![],
-            escape: false,
-            optional: false,
-            token_length: 0,
+            skip: false
         }
     }
 }
 
-struct TokenMatcher {
-    state: TokenMatcherState,
-    expr: String,
-    depth: u32
+struct TokenMatcherBranches {
+    branches: HashMap<u32, TokenMatcherState>,
+    next_branch_id: u32
+}
+
+impl TokenMatcherBranches {
+    fn new() -> Self {
+        TokenMatcherBranches { branches: HashMap::new(), next_branch_id: 0 }
+    }
+
+    fn spawn_branch(&mut self, state: TokenMatcherState) {
+        self.branches.insert(self.next_branch_id, state);
+        self.next_branch_id += 1;
+    }
+
+    fn get_branch_state(&mut self, branch: u32) -> Option<&TokenMatcherState> {
+        self.branches.get(&branch)
+    }
+
+    fn terminate_branch(&mut self, branch: u32) {
+        self.branches.remove(&branch);
+    }
+
+    fn running(&self) -> bool {
+        self.branches.len() > 0
+    }
+
+    fn branch_ids(&self) -> Vec<u32> {
+        self.branches.keys().map(|b| *b).collect()
+    }
+
+    fn state(&self, branch: u32) -> Option<&TokenMatcherState> {
+        self.branches.get(&branch)
+    }
+
+    fn state_mut(&mut self, branch: u32) -> Option<&mut TokenMatcherState> {
+        self.branches.get_mut(&branch)
+    }
+}
+
+pub struct TokenMatcher {
+    pub expr: String,
 }
 
 impl TokenMatcher {
-    fn new(expr: &str) -> Self {
+    pub fn new(expr: &str) -> Self {
         TokenMatcher {
-            state: TokenMatcherState::new(),
             expr: String::from(expr),
-            depth: 0
         }
     }
 
-    fn compare(&mut self, string: &str) -> Option<usize> {
-        let mut char: char;
-        let mut eval_char: char;
+    pub fn compare(&mut self, string: &str) -> Option<usize> {
+        let mut branches = TokenMatcherBranches::new();
+        branches.spawn_branch(TokenMatcherState::new());
 
-        loop {
-            eval_char = self.expr.chars().nth(self.state.eval_index).unwrap_or('\0');
-            char = string.chars().nth(self.state.cmp_index).unwrap_or('\0');
-            println!("{}: {eval_char} -> {char}", self.depth);
-
-            if eval_char == '\0' {
-                if self.depth != 0 { panic!("Unmatched opening parenthesis"); }
-                break;
-            }
-            if eval_char == ')' {
-                if self.depth == 0 { panic!("Unmatced closing parenthesis"); }
-                break;
-            }
-            if char == '\0' { return None; }
-            
-            match eval_char {
-                '*' => {
-                    self.state.loop_stack.push(self.state.eval_index);
+        while branches.running() {
+            for branch in branches.branch_ids() {
+                let mut state = branches.state_mut(branch).unwrap();
+                let eval_char = self.expr.chars().nth(state.eval_index).unwrap_or('\0');
+                let cmp_char = string.chars().nth(state.eval_index).unwrap_or('\0');
+                if eval_char == '\0' { return Some(state.cmp_index) }
+                if cmp_char == '\0' {
+                    branches.terminate_branch(branch);
+                    continue;
                 }
-                '(' => {
-                    let mut child_matcher = TokenMatcher::new(&self.expr[self.state.eval_index + 1 ..]);
-                    child_matcher.depth = self.depth + 1;
-                    if let Some(result) = child_matcher.compare(&string[self.state.cmp_index..]) {
-                        self.state.token_length += result;
-                        self.state.cmp_index += result;
-                        self.state.eval_index += child_matcher.state.eval_index + 1;
-                    } else {
-                        return None;
+
+                match eval_char {
+                    '*' => {
+                        let mut loop_branch_state = state.clone();
+                        loop_branch_state.loop_stack.push(state.eval_index);
+                        state.skip = true;
+
+                        branches.spawn_branch(loop_branch_state);
+
                     }
-                }
-                _ => {
-                    if eval_char == char {
-                        self.state.token_length += 1;
-                        self.state.cmp_index += 1;
-                    } else {
-                        if self.state.optional {
-                            self.state.optional = false
-                        } else if self.state.loop_stack.len() > 0 {
-                            self.state.loop_stack.pop();
+                    _ => {
+                        if eval_char != cmp_char {
+                            branches.terminate_branch(branch);
+                            continue;
                         } else {
-                            return None;
+                            state.cmp_index += 1;
                         }
                     }
-
-                    if let Some(next_eval) = self.state.loop_stack.pop() {
-                        self.state.eval_index = next_eval - 1;
-                    }
                 }
+
+                branches.state_mut(branch).unwrap().eval_index += 1;
             }
-            
-            self.state.eval_index += 1;
         }
 
-        Some(self.state.token_length)
+        None
     }
 }
 
