@@ -1,22 +1,22 @@
-use std::fmt;
+use std::{fmt};
 
-trait Fragment<P: Eq> where Self: fmt::Debug {
-    fn compare(&self, seq: &[P]) -> Option<usize>;
+pub trait Fragment<U: Eq> where Self: fmt::Debug {
+    fn compare(&self, seq: &[U]) -> Option<usize>;
 }
 
 #[derive(Debug)]
-struct ExactFragment<P: Eq + fmt::Debug> {
-   exact: P
+pub struct ExactFragment<U: Eq + fmt::Debug> {
+   exact: U
 }
 
-impl<P: Eq + fmt::Debug> ExactFragment<P> {
-    fn new(exact: P) -> Self {
+impl<U: Eq + fmt::Debug> ExactFragment<U> {
+    pub fn new(exact: U) -> Self {
         ExactFragment { exact }
     }
 }
 
-impl<P: Eq + fmt::Debug> Fragment<P> for ExactFragment<P> {
-    fn compare(&self, seq: &[P]) -> Option<usize> {
+impl<U: Eq + fmt::Debug> Fragment<U> for ExactFragment<U> {
+    fn compare(&self, seq: &[U]) -> Option<usize> {
         if seq.iter().next() == Some(&self.exact) {
             return Some(1)
         }
@@ -25,20 +25,20 @@ impl<P: Eq + fmt::Debug> Fragment<P> for ExactFragment<P> {
 }
 
 #[derive(Debug)]
-struct RepeatFragment<P: Eq + fmt::Debug> {
-    item: Box<dyn Fragment<P>>,
+pub struct RepeatFragment<U: Eq + fmt::Debug> {
+    item: Box<dyn Fragment<U>>,
     min_reps: u32,
     max_reps: Option<u32>
 }
 
-impl<P: Eq + fmt::Debug> RepeatFragment<P> {
-    fn new(item: Box<dyn Fragment<P>>, min_reps: u32, max_reps: Option<u32>) -> Self {
+impl<U: Eq + fmt::Debug> RepeatFragment<U> {
+    pub fn new(item: Box<dyn Fragment<U>>, min_reps: u32, max_reps: Option<u32>) -> Self {
         RepeatFragment { item, min_reps, max_reps }
     }
 }
 
-impl<P: Eq + fmt::Debug> Fragment<P> for RepeatFragment<P> {
-    fn compare(&self, seq: &[P]) -> Option<usize> {
+impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for RepeatFragment<U> {
+    fn compare(&self, seq: &[U]) -> Option<usize> {
         let mut num_reps: u32 = 0;
         let mut size: usize = 0;
         loop {
@@ -60,18 +60,18 @@ impl<P: Eq + fmt::Debug> Fragment<P> for RepeatFragment<P> {
 }
 
 #[derive(Debug)]
-struct ChoiceFragment<P: Eq + fmt::Debug> {
-    choices: Vec<Box<dyn Fragment<P>>>
+pub struct ChoiceFragment<U: Eq + fmt::Debug> {
+    choices: Vec<Box<dyn Fragment<U>>>
 }
 
-impl<P: Eq + fmt::Debug> ChoiceFragment<P> {
-    fn new(choices: Vec<Box<dyn Fragment<P>>>) -> Self {
+impl<U: Eq + fmt::Debug> ChoiceFragment<U> {
+    pub fn new(choices: Vec<Box<dyn Fragment<U>>>) -> Self {
         ChoiceFragment { choices }
     }
 }
 
-impl<P: Eq + fmt::Debug> Fragment<P> for ChoiceFragment<P> {
-    fn compare(&self, seq: &[P]) -> Option<usize> {
+impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for ChoiceFragment<U> {
+    fn compare(&self, seq: &[U]) -> Option<usize> {
         for choice in &self.choices {
             if let Some(len) = choice.compare(seq) {
                 return Some(len)
@@ -82,19 +82,19 @@ impl<P: Eq + fmt::Debug> Fragment<P> for ChoiceFragment<P> {
 }
 
 #[derive(Debug)]
-struct RangeFragment<P: Eq + Ord + fmt::Debug> {
-    from: P,
-    to: P
+pub struct RangeFragment<U: Eq + Ord + fmt::Debug> {
+    from: U,
+    to: U
 }
 
-impl<P: Eq + Ord + fmt::Debug> RangeFragment<P> {
-    fn new(from: P, to: P) -> Self {
+impl<U: Eq + Ord + fmt::Debug> RangeFragment<U> {
+    pub fn new(from: U, to: U) -> Self {
         RangeFragment { from, to }
     }
 }
 
-impl<P: Eq + Ord + fmt::Debug> Fragment<P> for RangeFragment<P> {
-    fn compare(&self, seq: &[P]) -> Option<usize> {
+impl<U: Eq + Ord + fmt::Debug> Fragment<U> for RangeFragment<U> {
+    fn compare(&self, seq: &[U]) -> Option<usize> {
         let first = seq.iter().next();
         if matches!(first, None) { return None }
         let first = first.unwrap();
@@ -104,18 +104,18 @@ impl<P: Eq + Ord + fmt::Debug> Fragment<P> for RangeFragment<P> {
 }
 
 #[derive(Debug)]
-struct SequenceFragment<P: Eq + fmt::Debug> {
-    items: Vec<Box<dyn Fragment<P>>>
+pub struct SequenceFragment<U: Eq + fmt::Debug> {
+    items: Vec<Box<dyn Fragment<U>>>
 }
 
-impl<P: Eq + fmt::Debug> SequenceFragment<P> {
-    fn new(items: Vec<Box<dyn Fragment<P>>>) -> Self {
+impl<U: Eq + fmt::Debug> SequenceFragment<U> {
+    pub fn new(items: Vec<Box<dyn Fragment<U>>>) -> Self {
         SequenceFragment { items }
     }
 }
 
-impl<P: Eq + fmt::Debug> Fragment<P> for SequenceFragment<P> {
-    fn compare(&self, seq: &[P]) -> Option<usize> {
+impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for SequenceFragment<U> {
+    fn compare(&self, seq: &[U]) -> Option<usize> {
         let mut size: usize = 0;
         for item in &self.items {
             if let Some(part_length) = item.compare(&seq[size..]) {
@@ -132,13 +132,91 @@ impl<P: Eq + fmt::Debug> Fragment<P> for SequenceFragment<P> {
 mod tests {
     use super::*;
 
+    fn stov(str: &str) -> Vec<char> {
+        str.chars().collect()
+    }
+
     #[test]
     fn exact_fragment_works() {
         let fragment = ExactFragment::new('a');
 
-        assert_eq!(fragment.compare((&[char]) &("a".chars())), Some(1));
-        assert_eq!(fragment.compare("abc"), Some(1));
-        assert_eq!(fragment.compare("fsfd"), None);
-        assert_eq!(fragment.compare(""), None);
+        assert_eq!(fragment.compare(&stov("a")), Some(1));
+        assert_eq!(fragment.compare(&stov("abc")), Some(1));
+        assert_eq!(fragment.compare(&stov("fsfd")), None);
+        assert_eq!(fragment.compare(&stov("")), None);
+    }
+
+    #[test]
+    fn repeat_fragment_works() {
+        let fragment = RepeatFragment::new(
+            Box::new(ExactFragment::new('x')),
+            0,
+            None
+        );
+        
+        assert_eq!(fragment.compare(&stov("")), Some(0));
+        assert_eq!(fragment.compare(&stov("fhg")), Some(0));
+        assert_eq!(fragment.compare(&stov("xfgh")), Some(1));
+        assert_eq!(fragment.compare(&stov("xxxxxxxxzut")), Some(8));
+    }
+
+    #[test]
+    fn repeat_fragment_min_reps_works() {
+        let fragment = RepeatFragment::new(
+            Box::new(ExactFragment::new('x')),
+            2,
+            None
+        );
+
+        assert_eq!(fragment.compare(&stov("")), None);
+        assert_eq!(fragment.compare(&stov("x")), None);
+        assert_eq!(fragment.compare(&stov("xx")), Some(2));
+    }
+
+    #[test]
+    fn repeat_fragment_max_reps_works() {
+        let fragment = RepeatFragment::new(
+            Box::new(ExactFragment::new('x')),
+            0,
+            Some(4)
+        );
+
+        assert_eq!(fragment.compare(&stov("xxxx")), Some(4));
+        assert_eq!(fragment.compare(&stov("xxxxx")), None);
+    }
+
+    #[test]
+    fn choice_fragment_works() {
+        let fragment = ChoiceFragment::new(vec![
+            Box::new(ExactFragment::new('a')),
+            Box::new(ExactFragment::new('b'))
+        ]);
+
+        assert_eq!(fragment.compare(&stov("a")), Some(1));
+        assert_eq!(fragment.compare(&stov("b")), Some(1));
+        assert_eq!(fragment.compare(&stov("c")), None);
+    }
+
+    #[test]
+    fn range_fragment_works() {
+        let fragment = RangeFragment::new('1', '3');
+
+        assert_eq!(fragment.compare(&stov("0")), None);
+        assert_eq!(fragment.compare(&stov("1")), Some(1));
+        assert_eq!(fragment.compare(&stov("2")), Some(1));
+        assert_eq!(fragment.compare(&stov("3")), Some(1));
+        assert_eq!(fragment.compare(&stov("4")), None);
+    }
+
+    #[test]
+    fn sequence_fragment_works() {
+        let fragment = SequenceFragment::new(vec![
+            Box::new(ExactFragment::new('a')),
+            Box::new(ExactFragment::new('b'))
+        ]);
+
+        assert_eq!(fragment.compare(&stov("agfgdh")), None);
+        assert_eq!(fragment.compare(&stov("abgfgdh")), Some(2));
+        assert_eq!(fragment.compare(&stov("abbgfgdh")), Some(2));
     }
 }
