@@ -1,113 +1,10 @@
-use std::fmt::Debug;
+use crate::fragment::{SequenceFragment, Fragment, RepeatFragment, ExactFragment, ChoiceFragment, RangeFragment};
 
-trait MatchItem where Self: Debug {
-    fn compare_part(&self, string: &str) -> Option<usize>;
-}
-
-#[derive(Debug)]
-struct ExactMatchItem {
-    exact: String
-}
-
-impl ExactMatchItem {
-    fn new(exact: &str) -> Self {
-        ExactMatchItem { exact: String::from(exact) }
-    }
-
-    fn single(char: char) -> Self {
-        ExactMatchItem { exact: char.to_string() }
-    }
-}
-
-impl MatchItem for ExactMatchItem {
-    fn compare_part(&self, string: &str) -> Option<usize> {
-        if string.starts_with(self.exact.as_str()) {
-            return Some(self.exact.len());
-        }
-        None
-    }
-}
-
-#[derive(Debug)]
-struct RepeatMatchItem {
-    item: Box<dyn MatchItem>,
-    min_reps: u32,
-    max_reps: Option<u32>
-}
-
-impl RepeatMatchItem {
-    fn new(item: Box<dyn MatchItem>) -> Self {
-        RepeatMatchItem { item, min_reps: 0, max_reps: None }
-    }
-}
-
-impl MatchItem for RepeatMatchItem {
-    fn compare_part(&self, string: &str) -> Option<usize> {
-        let mut num_reps: u32 = 0;
-        let mut size: usize = 0;
-        loop {
-            if let Some(max) = self.max_reps {
-                if num_reps >= max { break; } 
-            }
-            if let Some(part_length) = self.item.compare_part(&string[size..]) {
-                size += part_length
-            } else {
-                break;
-            }
-            num_reps += 1;
-        }
-        if num_reps < self.min_reps {
-            return None;
-        }
-        Some(size)
-    }
-}
-
-trait Choice where Self: Debug {
-    fn check(&self, char: char) -> bool;
-}
-
-#[derive(Debug)]
-struct ExactChoice {
-    char: char
-}
-
-impl ExactChoice {
-    fn new(char: char) -> Self {
-        ExactChoice { char }
-    }
-}
-
-impl Choice for ExactChoice {
-    fn check(&self, char: char) -> bool {
-        char == self.char
-    }
-}
-
-#[derive(Debug)]
-struct RangeChoice {
-    from: char,
-    to: char
-}
-
-impl RangeChoice {
-    fn new(from: char, to: char) -> Self {
-        if to < from {
-            panic!("End of range was smaller than its start");
-        }
-        RangeChoice { from, to }
-    }
-}
-
-impl Choice for RangeChoice {
-    fn check(&self, char: char) -> bool {
-        return self.from <= char && char <= self.to;
-    }
-}
-
-#[derive(Debug)]
-struct ChoiceMatcher {
-    choices: Vec<Box<dyn Choice>>
+#[derive(PartialEq, Eq)]
+enum ExprParseState {
+    Default,
+    SubExpr,
+    Choice
 }
 
 #[derive(PartialEq, Eq)]
@@ -116,19 +13,156 @@ enum ChoiceParseState {
     Range
 }
 
-impl ChoiceMatcher {
-    fn new(expr: &str) -> Self {
-        ChoiceMatcher { choices: Self::parse(expr) }
+#[derive(Debug)]
+pub struct TokenMatcher {
+    root_fragment: SequenceFragment<char>
+}
+
+impl TokenMatcher {
+    pub fn new(expr: &str) -> Self {
+        TokenMatcher { root_fragment: Self::parse_expr(&expr.chars().collect::<Vec<char>>()) }
     }
 
-    fn parse(expr: &str) -> Vec<Box<dyn Choice>> {
-        let mut choices: Vec<Box<dyn Choice>> = vec![];
+    pub fn compare(&self, string: &str) -> Option<usize> {
+        let cmp_chars: Vec<char> = string.chars().collect();
+        self.root_fragment.compare(&cmp_chars)
+    }
+
+    fn parse_expr(expr: &[char]) -> SequenceFragment<char> {
+        let mut items: Vec<Box<dyn Fragment<char>>> = vec![];
+        let mut current_item: Option<Box<dyn Fragment<char>>> = None;
+        let mut mode = ExprParseState::Default;
+        let mut buffer: Vec<char> = vec![];
+        let mut depth = 0;
+        let mut escape = false;
+
+        for char in expr {
+            if !escape && *char == '\\' {
+                escape = true;
+                continue;
+            }
+
+            match mode {
+                ExprParseState::Default => {
+                    if !escape {
+                        match char {
+                            '*' => {
+                                current_item = Some(Box::new(RepeatFragment::new(
+                                    current_item.expect("Invalid placement for '*'"),
+                                    0,
+                                    None
+                                )));
+                                continue;
+                            }
+                            '+' => {
+                                current_item = Some(Box::new(RepeatFragment::new(
+                                    current_item.expect("Invalid placement for '*'"),
+                                    1,
+                                    None
+                                )));
+                                continue;
+                            }
+                            '?' => {
+                                current_item = Some(Box::new(RepeatFragment::new(
+                                    current_item.expect("Invalid placement for '*'"),
+                                    0,
+                                    Some(1)
+                                )));
+                                continue;
+                            }
+                            '(' => {
+                                if let Some(item) = current_item {
+                                    items.push(item);
+                                }
+                                current_item = None;
+                                mode = ExprParseState::SubExpr;
+                                continue;
+                            }
+                            ')' => {
+                                panic!("Unmatched closing parenthesis");
+                            },
+                            '[' => {
+                                if let Some(item) = current_item {
+                                    items.push(item);
+                                }
+                                current_item = None;
+                                mode = ExprParseState::Choice;
+                                continue;
+                            },
+                            ']' => {
+                                panic!("Unmatched closing square bracket");
+                            }
+                            _ => ()
+                        }
+                    }
+                    if let Some(item) = current_item {
+                        items.push(item);
+                    }
+                    current_item = Some(Box::new(ExactFragment::new(*char)))
+                }
+                ExprParseState::SubExpr => {
+                    if escape { buffer.push('\\'); }
+                    match char {
+                        '(' => depth += 1,
+                        ')' => {
+                            if depth > 0 {
+                                depth -= 1;
+                            } else {
+                                current_item = Some(Box::new(Self::parse_expr(&buffer)));
+                                buffer.clear();
+                                mode = ExprParseState::Default;
+                                continue;
+                            }
+                        }
+                        _ => ()
+                    }
+                    buffer.push(*char)
+                }
+                ExprParseState::Choice => {
+                    if escape {
+                        if *char != ']' { buffer.push('\\'); }
+                    } else {
+                        if *char == ']' {
+                            current_item = Some(Box::new(Self::parse_choice(&buffer)));
+                            buffer.clear();
+                            mode = ExprParseState::Default;
+                            continue;
+                        }
+                    }
+                    buffer.push(*char);
+                }
+            }
+
+            if escape {
+                escape = false;
+            }
+        }
+
+        if escape {
+            panic!("Incomplete escape sequence");
+        }
+        if mode == ExprParseState::SubExpr {
+            panic!("Unmatched opening parenthesis");
+        }
+        if mode == ExprParseState::Choice {
+            panic!("Unmatched opening square bracket");
+        }
+
+        if let Some(item) = current_item {
+            items.push(item);
+        }
+
+        SequenceFragment::new(items)
+    }
+
+    fn parse_choice(expr: &[char]) -> ChoiceFragment<char> {
+        let mut choices: Vec<Box<dyn Fragment<char>>> = vec![];
         let mut state = ChoiceParseState::Default;
         let mut last: Option<char> = None;
         let mut escape = false;
 
-        for char in expr.chars() {
-            if !escape && char == '\\' {
+        for char in expr {
+            if !escape && *char == '\\' {
                 escape = true;
                 continue;
             }
@@ -144,14 +178,14 @@ impl ChoiceMatcher {
                             _ => ()
                         }
                     }
-                    last = Some(char);
-                    choices.push(Box::new(ExactChoice::new(char)))
+                    last = Some(*char);
+                    choices.push(Box::new(ExactFragment::new(*char)))
                 }
                 ChoiceParseState::Range => {
                     choices.push(Box::new(
-                        RangeChoice::new(
+                        RangeFragment::new(
                             last.expect("Missing start of range"),
-                            char
+                            *char
                         )
                     ));
                     last = None;
@@ -171,191 +205,7 @@ impl ChoiceMatcher {
             panic!("Missing end of range");
         }
 
-        choices
-    }
-}
-
-impl MatchItem for ChoiceMatcher {
-    fn compare_part(&self, string: &str) -> Option<usize> {
-        let char = string.chars().next();
-        if char == None { return None; }
-        let char = char.unwrap();
-
-        for choice in &self.choices {
-            if choice.check(char) {
-                return Some(1);
-            }
-        }
-        None
-    }
-}
-
-#[derive(Debug)]
-pub struct TokenMatcher {
-    items: Vec<Box<dyn MatchItem>>
-}
-
-#[derive(PartialEq, Eq)]
-enum TokenParseMode {
-    Default,
-    SubExpr,
-    Choice
-}
-
-impl TokenMatcher {
-    pub fn new(expr: &str) -> Self {
-        TokenMatcher {
-            items: Self::parse(expr)
-        }
-    }
-
-    fn group(items: Vec<Box<dyn MatchItem>>) -> Self {
-        TokenMatcher { items }
-    }
-
-    fn parse(expr: &str) -> Vec<Box<dyn MatchItem>> {
-        const SPECIAL_CHARS: &str = "*";
-
-        let mut items: Vec<Box<dyn MatchItem>> = vec![];
-        let mut current_item: Option<Box<dyn MatchItem>> = None;
-        let mut mode = TokenParseMode::Default;
-        let mut buffer = String::new();
-        let mut depth = 0;
-        let mut escape = false;
-
-        for char in expr.chars() {
-            if !escape && char == '\\' {
-                escape = true;
-                continue;
-            }
-
-            match mode {
-                TokenParseMode::Default => {
-                    if !escape {
-                        match char {
-                            '*' => {
-                                current_item = Some(Box::new(RepeatMatchItem::new(
-                                    current_item.expect("Invalid placement for '*'")
-                                )));
-                                continue;
-                            }
-                            '+' => {
-                                let mut repeat_item = RepeatMatchItem::new(
-                                    current_item.expect("Invalid placement for '*'")
-                                );
-                                repeat_item.min_reps = 1;
-                                current_item = Some(Box::new(repeat_item));
-                                continue;
-                            }
-                            '?' => {
-                                let mut repeat_item = RepeatMatchItem::new(
-                                    current_item.expect("Invalid placement for '*'")
-                                );
-                                repeat_item.max_reps = Some(1);
-                                current_item = Some(Box::new(repeat_item));
-                                continue;
-                            }
-                            '(' => {
-                                if let Some(item) = current_item {
-                                    items.push(item);
-                                }
-                                current_item = None;
-                                mode = TokenParseMode::SubExpr;
-                                continue;
-                            }
-                            ')' => {
-                                panic!("Unmatched closing parenthesis");
-                            },
-                            '[' => {
-                                if let Some(item) = current_item {
-                                    items.push(item);
-                                }
-                                current_item = None;
-                                mode = TokenParseMode::Choice;
-                                continue;
-                            },
-                            ']' => {
-                                panic!("Unmatched closing square bracket");
-                            }
-                            _ => ()
-                        }
-                    }
-                    if let Some(item) = current_item {
-                        items.push(item);
-                    }
-                    current_item = Some(Box::new(ExactMatchItem::single(char)))
-                }
-                TokenParseMode::SubExpr => {
-                    if escape { buffer += "\\"; }
-                    match char {
-                        '(' => depth += 1,
-                        ')' => {
-                            if depth > 0 {
-                                depth -= 1;
-                            } else {
-                                current_item = Some(Box::new(TokenMatcher::new(buffer.as_str())));
-                                buffer.clear();
-                                mode = TokenParseMode::Default;
-                                continue;
-                            }
-                        }
-                        _ => ()
-                    }
-                    buffer += char.to_string().as_str()
-                }
-                TokenParseMode::Choice => {
-                    if escape {
-                        if char != ']' { buffer += "\\"; }
-                    } else {
-                        if char == ']' {
-                            current_item = Some(Box::new(ChoiceMatcher::new(buffer.as_str())));
-                            buffer.clear();
-                            mode = TokenParseMode::Default;
-                            continue;
-                        }
-                    }
-                    buffer += char.to_string().as_str()
-                }
-            }
-
-            if escape {
-                escape = false;
-            }
-        }
-
-        if escape {
-            panic!("Incomplete escape sequence");
-        }
-        if mode == TokenParseMode::SubExpr {
-            panic!("Unmatched opening parenthesis");
-        }
-        if mode == TokenParseMode::Choice {
-            panic!("Unmatched opening square bracket");
-        }
-
-        if let Some(item) = current_item {
-            items.push(item);
-        }
-
-        items
-    }
-
-    pub fn compare(&self, string: &str) -> Option<usize> {
-        return self.compare_part(string);
-    }
-}
-
-impl MatchItem for TokenMatcher {
-    fn compare_part(&self, string: &str) -> Option<usize> {
-        let mut size: usize = 0;
-        for item in &self.items {
-            if let Some(part_length) = item.compare_part(&string[size..]) {
-                size += part_length;
-            } else {
-                return None;
-            }
-        }
-        Some(size)
+        ChoiceFragment::new(choices)
     }
 }
 
