@@ -43,7 +43,7 @@ impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for RepeatFragment<U> {
         let mut size: usize = 0;
         loop {
             if let Some(max) = self.max_reps {
-                if max >= num_reps { break; }
+                if num_reps >= max { break; }
             }
             if let Some(part_length) = self.item.compare(&seq[size..]) {
                 size += part_length;
@@ -182,7 +182,7 @@ mod tests {
         );
 
         assert_eq!(fragment.compare(&stov("xxxx")), Some(4));
-        assert_eq!(fragment.compare(&stov("xxxxx")), None);
+        assert_eq!(fragment.compare(&stov("xxxxx")), Some(4));
     }
 
     #[test]
