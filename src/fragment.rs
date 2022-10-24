@@ -1,7 +1,39 @@
 use std::{fmt};
 
-pub trait Fragment<U: Eq> where Self: fmt::Debug {
-    fn compare(&self, seq: &[U]) -> Option<usize>;
+pub trait Fragment where Self: fmt::Debug {
+    type Item;
+
+    fn compare(&self, seq: &[Self::Item]) -> Option<usize>;
+}
+
+pub trait Check where Self: fmt::Debug {
+    type Type;
+
+    fn check(&self, other: &Self::Type) -> bool;
+}
+
+#[derive(Debug)]
+pub struct CheckFragment<C: Check> {
+    checker: C
+}
+
+impl<C: Check> CheckFragment<C> {
+    pub fn new(checker: C) -> Self {
+        CheckFragment { checker }
+    }
+}
+
+impl<U, C: Check<Type = U>> Fragment for CheckFragment<C> {
+    type Item = U;
+
+    fn compare(&self, seq: &[U]) -> Option<usize> {
+        if let Some(item) = seq.iter().next() {
+            if self.checker.check(item) {
+                return Some(1)
+            }
+        }
+        return None;
+    }
 }
 
 #[derive(Debug)]
@@ -15,7 +47,9 @@ impl<U: Eq + fmt::Debug> ExactFragment<U> {
     }
 }
 
-impl<U: Eq + fmt::Debug> Fragment<U> for ExactFragment<U> {
+impl<U: Eq + fmt::Debug> Fragment for ExactFragment<U> {
+    type Item = U;
+
     fn compare(&self, seq: &[U]) -> Option<usize> {
         if seq.iter().next() == Some(&self.exact) {
             return Some(1)
@@ -25,19 +59,21 @@ impl<U: Eq + fmt::Debug> Fragment<U> for ExactFragment<U> {
 }
 
 #[derive(Debug)]
-pub struct RepeatFragment<U: Eq + fmt::Debug> {
-    item: Box<dyn Fragment<U>>,
+pub struct RepeatFragment<U> {
+    item: Box<dyn Fragment<Item = U>>,
     min_reps: u32,
     max_reps: Option<u32>
 }
 
-impl<U: Eq + fmt::Debug> RepeatFragment<U> {
-    pub fn new(item: Box<dyn Fragment<U>>, min_reps: u32, max_reps: Option<u32>) -> Self {
+impl<U> RepeatFragment<U> {
+    pub fn new(item: Box<dyn Fragment<Item = U>>, min_reps: u32, max_reps: Option<u32>) -> Self {
         RepeatFragment { item, min_reps, max_reps }
     }
 }
 
-impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for RepeatFragment<U> {
+impl<U: fmt::Debug> Fragment for RepeatFragment<U> {
+    type Item = U;
+
     fn compare(&self, seq: &[U]) -> Option<usize> {
         let mut num_reps: u32 = 0;
         let mut size: usize = 0;
@@ -60,17 +96,19 @@ impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for RepeatFragment<U> {
 }
 
 #[derive(Debug)]
-pub struct ChoiceFragment<U: Eq + fmt::Debug> {
-    choices: Vec<Box<dyn Fragment<U>>>
+pub struct ChoiceFragment<U> {
+    choices: Vec<Box<dyn Fragment<Item = U>>>
 }
 
-impl<U: Eq + fmt::Debug> ChoiceFragment<U> {
-    pub fn new(choices: Vec<Box<dyn Fragment<U>>>) -> Self {
+impl<U> ChoiceFragment<U> {
+    pub fn new(choices: Vec<Box<dyn Fragment<Item = U>>>) -> Self {
         ChoiceFragment { choices }
     }
 }
 
-impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for ChoiceFragment<U> {
+impl<U: fmt::Debug> Fragment for ChoiceFragment<U> {
+    type Item = U;
+
     fn compare(&self, seq: &[U]) -> Option<usize> {
         for choice in &self.choices {
             if let Some(len) = choice.compare(seq) {
@@ -93,7 +131,9 @@ impl<U: Eq + Ord + fmt::Debug> RangeFragment<U> {
     }
 }
 
-impl<U: Eq + Ord + fmt::Debug> Fragment<U> for RangeFragment<U> {
+impl<U: Eq + Ord + fmt::Debug> Fragment for RangeFragment<U> {
+    type Item = U;
+
     fn compare(&self, seq: &[U]) -> Option<usize> {
         let first = seq.iter().next();
         if matches!(first, None) { return None }
@@ -104,17 +144,19 @@ impl<U: Eq + Ord + fmt::Debug> Fragment<U> for RangeFragment<U> {
 }
 
 #[derive(Debug)]
-pub struct SequenceFragment<U: Eq + fmt::Debug> {
-    items: Vec<Box<dyn Fragment<U>>>
+pub struct SequenceFragment<U> {
+    items: Vec<Box<dyn Fragment<Item = U>>>
 }
 
-impl<U: Eq + fmt::Debug> SequenceFragment<U> {
-    pub fn new(items: Vec<Box<dyn Fragment<U>>>) -> Self {
+impl<U> SequenceFragment<U> {
+    pub fn new(items: Vec<Box<dyn Fragment<Item = U>>>) -> Self {
         SequenceFragment { items }
     }
 }
 
-impl<U: Eq + fmt::Debug + fmt::Debug> Fragment<U> for SequenceFragment<U> {
+impl<U: fmt::Debug> Fragment for SequenceFragment<U> {
+    type Item = U;
+
     fn compare(&self, seq: &[U]) -> Option<usize> {
         let mut size: usize = 0;
         for item in &self.items {
@@ -134,6 +176,27 @@ mod tests {
 
     fn stov(str: &str) -> Vec<char> {
         str.chars().collect()
+    }
+
+    #[test]
+    fn check_fragment_works() {
+        #[derive(Debug)]
+        struct TestChecker;
+
+        impl Check for TestChecker {
+            type Type = char;
+
+            fn check(&self, other: &char) -> bool {
+                *other == 'x'
+            }
+        }
+
+        let fragment = CheckFragment::new(TestChecker {});
+
+        assert_eq!(fragment.compare(&stov("a")), None);
+        assert_eq!(fragment.compare(&stov("x")), Some(1));
+        assert_eq!(fragment.compare(&stov("xxa")), Some(1));
+        assert_eq!(fragment.compare(&stov("sx")), None);
     }
 
     #[test]

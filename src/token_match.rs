@@ -56,8 +56,8 @@ impl TokenMatcher {
     }
 
     fn parse_expr(expr: &[char]) -> Result<SequenceFragment<char>, ExprParseError> {
-        let mut items: Vec<Box<dyn Fragment<char>>> = vec![];
-        let mut current_item: Option<Box<dyn Fragment<char>>> = None;
+        let mut items: Vec<Box<dyn Fragment<Item = char>>> = vec![];
+        let mut current_item: Option<Box<dyn Fragment<Item = char>>> = None;
         let mut mode = ExprParseState::Default;
         let mut buffer: Vec<char> = vec![];
         let mut depth = 0;
@@ -81,7 +81,7 @@ impl TokenMatcher {
                                     return Err(ExprParseError::new(*char, index, None))
                                 }
                                 current_item = Some(Box::new(RepeatFragment::new(
-                                    current_item.unwrap(),
+                                    current_item.unwrap().into(),
                                     0,
                                     None
                                 )));
@@ -92,7 +92,7 @@ impl TokenMatcher {
                                     return Err(ExprParseError::new(*char, index, None))
                                 }
                                 current_item = Some(Box::new(RepeatFragment::new(
-                                    current_item.unwrap(),
+                                    current_item.unwrap().into(),
                                     1,
                                     None
                                 )));
@@ -103,7 +103,7 @@ impl TokenMatcher {
                                     return Err(ExprParseError::new(*char, index, None))
                                 }
                                 current_item = Some(Box::new(RepeatFragment::new(
-                                    current_item.unwrap(),
+                                    current_item.unwrap().into(),
                                     0,
                                     Some(1)
                                 )));
@@ -203,7 +203,7 @@ impl TokenMatcher {
     }
 
     fn parse_choice(expr: &[char]) -> ChoiceFragment<char> {
-        let mut choices: Vec<Box<dyn Fragment<char>>> = vec![];
+        let mut choices: Vec<Box<dyn Fragment<Item = char>>> = vec![];
         let mut state = ChoiceParseState::Default;
         let mut last: Option<char> = None;
         let mut escape = false;
