@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::fragment::{SequenceFragment, Fragment, RepeatFragment, ExactFragment, ChoiceFragment, RangeFragment};
 
 #[derive(PartialEq, Eq)]
@@ -14,13 +16,38 @@ enum ChoiceParseState {
 }
 
 #[derive(Debug)]
+pub struct ExprParseError {
+    pub character: char,
+    pub index: usize,
+    pub message: Option<String>
+}
+
+impl ExprParseError {
+    fn new(character: char, index: usize, message: Option<String>) -> Self {
+       ExprParseError { character, index, message: message }
+    }
+}
+
+impl fmt::Display for ExprParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.message.is_some() {
+            write!(f, "Unexpected '{}' at index {}: {}", self.character, self.index, self.message.as_ref().unwrap())
+        } else {
+            write!(f, "Unexpected '{}' at index {}", self.character, self.index)
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct TokenMatcher {
     root_fragment: SequenceFragment<char>
 }
 
 impl TokenMatcher {
-    pub fn new(expr: &str) -> Self {
-        TokenMatcher { root_fragment: Self::parse_expr(&expr.chars().collect::<Vec<char>>()) }
+    pub fn expr(expr: &str) -> Result<Self, ExprParseError> {
+        Ok(TokenMatcher {
+            root_fragment: Self::parse_expr(&expr.chars().collect::<Vec<char>>())?
+        })
     }
 
     pub fn compare(&self, string: &str) -> Option<usize> {
@@ -28,15 +55,18 @@ impl TokenMatcher {
         self.root_fragment.compare(&cmp_chars)
     }
 
-    fn parse_expr(expr: &[char]) -> SequenceFragment<char> {
+    fn parse_expr(expr: &[char]) -> Result<SequenceFragment<char>, ExprParseError> {
         let mut items: Vec<Box<dyn Fragment<char>>> = vec![];
         let mut current_item: Option<Box<dyn Fragment<char>>> = None;
         let mut mode = ExprParseState::Default;
         let mut buffer: Vec<char> = vec![];
         let mut depth = 0;
         let mut escape = false;
+        let mut index = 0;
 
         for char in expr {
+            index += 1;
+
             if !escape && *char == '\\' {
                 escape = true;
                 continue;
@@ -47,24 +77,33 @@ impl TokenMatcher {
                     if !escape {
                         match char {
                             '*' => {
+                                if current_item.is_none() {
+                                    return Err(ExprParseError::new(*char, index, None))
+                                }
                                 current_item = Some(Box::new(RepeatFragment::new(
-                                    current_item.expect("Invalid placement for '*'"),
+                                    current_item.unwrap(),
                                     0,
                                     None
                                 )));
                                 continue;
                             }
                             '+' => {
+                                if current_item.is_none() {
+                                    return Err(ExprParseError::new(*char, index, None))
+                                }
                                 current_item = Some(Box::new(RepeatFragment::new(
-                                    current_item.expect("Invalid placement for '*'"),
+                                    current_item.unwrap(),
                                     1,
                                     None
                                 )));
                                 continue;
                             }
                             '?' => {
+                                if current_item.is_none() {
+                                    return Err(ExprParseError::new(*char, index, None))
+                                }
                                 current_item = Some(Box::new(RepeatFragment::new(
-                                    current_item.expect("Invalid placement for '*'"),
+                                    current_item.unwrap(),
                                     0,
                                     Some(1)
                                 )));
@@ -79,7 +118,7 @@ impl TokenMatcher {
                                 continue;
                             }
                             ')' => {
-                                panic!("Unmatched closing parenthesis");
+                                return Err(ExprParseError::new(*char, index, Some(String::from("Unmatched closing parenthesis"))))
                             },
                             '[' => {
                                 if let Some(item) = current_item {
@@ -90,7 +129,7 @@ impl TokenMatcher {
                                 continue;
                             },
                             ']' => {
-                                panic!("Unmatched closing square bracket");
+                                return Err(ExprParseError::new(*char, index, Some(String::from("Unmatched closing square bracket"))))
                             }
                             _ => ()
                         }
@@ -108,7 +147,15 @@ impl TokenMatcher {
                             if depth > 0 {
                                 depth -= 1;
                             } else {
-                                current_item = Some(Box::new(Self::parse_expr(&buffer)));
+                                let parsed_expr = Self::parse_expr(&buffer);
+                                if let Err(err) = parsed_expr {
+                                    return Err(ExprParseError::new(
+                                        err.character,
+                                        index + err.index,
+                                        err.message
+                                    ));
+                                }
+                                current_item = Some(Box::new(Self::parse_expr(&buffer)?));
                                 buffer.clear();
                                 mode = ExprParseState::Default;
                                 continue;
@@ -152,7 +199,7 @@ impl TokenMatcher {
             items.push(item);
         }
 
-        SequenceFragment::new(items)
+        Ok(SequenceFragment::new(items))
     }
 
     fn parse_choice(expr: &[char]) -> ChoiceFragment<char> {
@@ -215,7 +262,7 @@ mod tests {
 
     #[test]
     fn can_match_exact() {
-        let matcher = TokenMatcher::new("abc");
+        let matcher = TokenMatcher::expr("abc").unwrap();
 
         assert_eq!(matcher.compare("abc"), Some(3), "'abc' should match first 3 chars in 'abc'");
         assert_eq!(matcher.compare("abcdefg"), Some(3), "'abc' should match first 3 chars in 'abcdefg'");
@@ -224,7 +271,7 @@ mod tests {
 
     #[test]
     fn can_repeat_single() {
-        let matcher = TokenMatcher::new("ab*");
+        let matcher = TokenMatcher::expr("ab*").unwrap();
         
         assert_eq!(matcher.compare("abbbbbc"), Some(6), "'ab*' should match first 6 chars in 'abbbbbc'");
         assert_eq!(matcher.compare("acfds"), Some(1), "'ab*' should match first char in 'acfds'");
@@ -233,7 +280,7 @@ mod tests {
 
     #[test]
     fn can_repeat_multiple() {
-        let matcher = TokenMatcher::new("a(bc)*");
+        let matcher = TokenMatcher::expr("a(bc)*").unwrap();
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(9), "'a(bc)*' should match first 9 chars in 'abcbcbcbcefdfs'");
         assert_eq!(matcher.compare("bcbcbcbcefdfs"), None, "'a(bc)*' should not match 'bcbcbcbcefdfs'");
@@ -241,7 +288,7 @@ mod tests {
 
     #[test]
     fn can_repeat_multiple_plus() {
-        let matcher = TokenMatcher::new("a(bc)+");
+        let matcher = TokenMatcher::expr("a(bc)+").unwrap();
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(9), "'a(bc)+' should match first 9 chars in 'abcbcbcbcefdfs'");
         assert_eq!(matcher.compare("bcbcbcbcefdfs"), None, "'a(bc)+' not match 'bcbcbcbcefdfs'");
@@ -250,7 +297,7 @@ mod tests {
 
     #[test]
     fn optional_works() {
-        let matcher = TokenMatcher::new("a(bc)?");
+        let matcher = TokenMatcher::expr("a(bc)?").unwrap();
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Some(3), "'a(bc)?' should match first 3 chars in 'abcbcbcbcefdfs'");
         assert_eq!(matcher.compare("adbcbcbcbcefdfs"), Some(1), "'a(bc)?' should match the first character of 'adbcbcbcbcefdfs'");
@@ -259,7 +306,7 @@ mod tests {
 
     #[test]
     fn choice_works() {
-        let matcher = TokenMatcher::new("a[bc]");
+        let matcher = TokenMatcher::expr("a[bc]").unwrap();
 
         assert_eq!(matcher.compare("ab534"), Some(2), "'a[bc]' should match the first 2 chars in 'ab534'");
         assert_eq!(matcher.compare("ac534"), Some(2), "'a[bc]' should match the first 2 chars in 'ac534'");
@@ -268,14 +315,14 @@ mod tests {
 
     #[test]
     fn repeated_choice_works() {
-        let matcher = TokenMatcher::new("a[bc]*");
+        let matcher = TokenMatcher::expr("a[bc]*").unwrap();
 
         assert_eq!(matcher.compare("abbcbccccbbc453"), Some(12), "'a[bc]*' should match the first 12 chars in 'abbcbccccbbc453'");
     }
 
     #[test]
     fn escape_works() {
-        let matcher = TokenMatcher::new("\\(\\(\\[\\*");
+        let matcher = TokenMatcher::expr("\\(\\(\\[\\*").unwrap();
 
         assert_eq!(matcher.compare("(([*"), Some(4), "'\\(\\(\\[\\*' should match the first 4 chars in '(([*'");
         assert_eq!(matcher.compare("(([a"), None, "'\\(\\(\\[\\*' should not match '(([a'");
@@ -283,7 +330,7 @@ mod tests {
 
     #[test]
     fn escape_in_choice_works() {
-        let matcher = TokenMatcher::new("[a\\-\\]]");
+        let matcher = TokenMatcher::expr("[a\\-\\]]").unwrap();
 
         assert_eq!(matcher.compare("a"), Some(1), "'[a\\-\\]]' should match 'a'");
         assert_eq!(matcher.compare("]"), Some(1), "'[a\\-\\]]' should match ']'");
@@ -293,7 +340,7 @@ mod tests {
 
     #[test]
     fn ranges_work() {
-        let matcher = TokenMatcher::new("[a-z]");
+        let matcher = TokenMatcher::expr("[a-z]").unwrap();
 
         assert_eq!(matcher.compare("v"), Some(1), "'[a-z]' should match 'v'");
         assert_eq!(matcher.compare("s"), Some(1), "'[a-z]' should match 's'");

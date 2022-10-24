@@ -1,6 +1,6 @@
 use std::{vec, slice, fmt::{self, Debug}};
 
-use crate::token_match::TokenMatcher;
+use crate::token_match::{TokenMatcher, ExprParseError};
 
 #[derive(Debug)]
 struct TokenDefinition<N: Eq + Copy> {
@@ -9,8 +9,8 @@ struct TokenDefinition<N: Eq + Copy> {
 }
 
 impl<N: Eq + Copy> TokenDefinition<N> {
-    fn new(name: N, match_expr: &str) -> Self {
-        TokenDefinition { name, matcher: TokenMatcher::new(match_expr) }
+    fn new(name: N, matcher: TokenMatcher) -> Self {
+        TokenDefinition { name, matcher }
     }
 }
 
@@ -74,8 +74,8 @@ impl<N: Eq + Copy + Debug> Alphabet<N> {
         Alphabet { token_defs: vec![] }
     }
 
-    pub fn register_token(&mut self, name: N, match_expr: &str) {
-        self.token_defs.push(TokenDefinition::new(name, match_expr));
+    pub fn register_token(&mut self, name: N, match_expr: &str) -> Result<(), ExprParseError> {
+        Ok(self.token_defs.push(TokenDefinition::new(name, TokenMatcher::expr(match_expr)?)))
     }
 
     fn iter(&self) -> slice::Iter<'_, TokenDefinition<N>> {
@@ -116,7 +116,13 @@ macro_rules! alphabet {
     ($($match_expr:literal=>$name:expr),*) => {
         {
             let mut alphabet = Alphabet::new();
-            $(alphabet.register_token($name, $match_expr));*;
+            $({
+                let res = alphabet.register_token($name, $match_expr);
+                if let Err(err) = res {
+                    panic!("{}", err)
+                }
+                res.unwrap()
+            });*;
             alphabet
         }
     };
