@@ -2,7 +2,6 @@ use std::{vec, slice, fmt::{self, Debug}};
 
 use crate::token_match::{TokenMatcher, ExprParseError};
 
-#[derive(Debug)]
 struct TokenDefinition<N: Eq + Copy> {
     name: N,
     matcher: TokenMatcher
@@ -47,19 +46,19 @@ impl fmt::Display for TokenPosition {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Token<'a, N: Eq + Copy + Debug> {
+pub struct Token<N: Eq + Copy + Debug> {
     pub name: N,
-    pub str: &'a str,
+    pub str: String,
     pub pos: TokenPosition
 }
 
-impl<'a, N: Eq + Copy + Debug> Token<'a, N> {
-    fn new(name: N, str: &'a str, pos: TokenPosition) -> Self {
+impl<N: Eq + Copy + Debug> Token<N> {
+    fn new(name: N, str: String, pos: TokenPosition) -> Self {
         return Token { name, str, pos }
     }
 }
 
-impl<'a, N: Eq + Copy + Debug> fmt::Display for Token<'a, N> {
+impl<N: Eq + Copy + Debug> fmt::Display for Token<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}(\"{}\") at {}", self.name, self.str, self.pos)
     }
@@ -82,32 +81,31 @@ impl<N: Eq + Copy + Debug> Alphabet<N> {
         self.token_defs.iter()
     }
 
-    pub fn tokenize<'a>(&self, string: &'a str) -> Vec<Token<'a, N>> {
-        let mut tokens: Vec<Token<'a, N>> = vec![];
+    pub fn tokenize(&self, string: String) -> Result<Vec<Token<N>>, String> {
+        let mut tokens: Vec<Token<N>> = vec![];
         let mut index = 0;
         let mut pos = TokenPosition::new(1, 0);
 
         loop {
             let mut match_found = false;
             for token_def in &self.token_defs {
-                if let Some(len) = token_def.matcher.compare(&string[index..]) {
-                    let slice = &string[index .. index + len];
-                    tokens.push(Token::new(token_def.name, slice, pos.clone()));
-                    pos.advance(slice);
-                    index += len;
+                if let Ok(token_str) = token_def.matcher.compare(&string[index..]) {
+                    tokens.push(Token::new(token_def.name, token_str.clone(), pos.clone()));
+                    pos.advance(&token_str);
+                    index += token_str.len();
                     match_found = true;
                     break;
                 }
             }
             if !match_found {
-                panic!("Unexpected character '{}' ({})", string.chars().nth(index).unwrap(), pos);
+                return Err(format!("Unexpected character '{}' ({})", string.chars().nth(index).unwrap(), pos));
             }
             if index == string.len() {
                 break;
             }
         }
         
-        tokens
+        Ok(tokens)
     }
 }
 
@@ -143,11 +141,11 @@ mod tests {
 
         let first = defs.next().expect("Should register the first token definition");
         assert_eq!(first.name, 0);
-        assert_eq!(first.matcher.compare("a"), Some(1));
+        assert_eq!(first.matcher.compare("a"), Ok(String::from("a")));
 
         let second = defs.next().expect("Should register the second token definition");
         assert_eq!(second.name, 1);
-        assert_eq!(second.matcher.compare("b"), Some(1));
+        assert_eq!(second.matcher.compare("b"), Ok(String::from("b")));
 
         assert_eq!(matches!(defs.next(), None), true, "Should have exactly two definitions");
     }
@@ -163,11 +161,11 @@ mod tests {
 
         let first = defs.next().expect("Should register the second token definition");
         assert_eq!(first.name, 0);
-        assert_eq!(first.matcher.compare("a"), Some(1));
+        assert_eq!(first.matcher.compare("a"), Ok(String::from("a")));
 
         let second = defs.next().expect("Should register the second token definition");
         assert_eq!(second.name, 0);
-        assert_eq!(second.matcher.compare("b"), Some(1));
+        assert_eq!(second.matcher.compare("b"), Ok(String::from("b")));
         
         assert_eq!(matches!(defs.next(), None), true, "Should have exactly two definitions");
     }
@@ -188,14 +186,16 @@ mod tests {
             "b"  => TokenName::B,
             "\n" => TokenName::EOL
         };
-        let tokens = abc.tokenize("aaxb\na");
-        let mut token_iter = tokens.iter();
+        let tokens = abc.tokenize(String::from("aaxb\na"));
+        assert!(tokens.is_ok(), "Should tokenize \"axb\\na\"");
+        let tokens = tokens.unwrap();
+        let mut token_iter = tokens.iter(); 
         
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, "a", TokenPosition::new(1, 0))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::AX, "ax", TokenPosition::new(1, 1))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::B, "b", TokenPosition::new(1, 3))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::EOL, "\n", TokenPosition::new(1, 4))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, "a", TokenPosition::new(2, 0))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TokenPosition::new(1, 0))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::AX, String::from("ax"), TokenPosition::new(1, 1))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::B, String::from("b"), TokenPosition::new(1, 3))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::EOL, String::from("\n"), TokenPosition::new(1, 4))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TokenPosition::new(2, 0))));
         assert_eq!(token_iter.next(), None);
     }
 }
