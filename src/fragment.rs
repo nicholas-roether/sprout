@@ -22,31 +22,33 @@ impl<'a, I> SequenceView<'a, I> {
 }
 
 
-pub trait Fragment<I, A> {
+pub trait Fragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut A
+		acc: &mut A,
+		context: &C
 	) -> Result<(), String>;
 }
 
-pub struct RepeatFragment<I, A> {
-	item: Box<dyn Fragment<I, A>>,
+pub struct RepeatFragment<I, A, C> {
+	item: Box<dyn Fragment<I, A, C>>,
 	min_reps: u32,
 	max_reps: Option<u32>
 }
 
-impl<I, A> RepeatFragment<I, A> {
-	pub fn new(item: Box<dyn Fragment<I, A>>, min_reps: u32, max_reps: Option<u32>) -> Self {
+impl<I, A, C> RepeatFragment<I, A, C> {
+	pub fn new(item: Box<dyn Fragment<I, A, C>>, min_reps: u32, max_reps: Option<u32>) -> Self {
 		RepeatFragment { item, min_reps, max_reps }
 	}
 }
 
-impl<I, A> Fragment<I, A> for RepeatFragment<I, A> {
+impl<I, A, C> Fragment<I, A, C> for RepeatFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut A
+		acc: &mut A,
+		context: &C
 	) -> Result<(), String> {
 		let mut num_reps: u32 = 0;
 		let mut err = String::from("Unexpected parsing error");
@@ -54,7 +56,7 @@ impl<I, A> Fragment<I, A> for RepeatFragment<I, A> {
 			if let Some(max) = self.max_reps{
 				if num_reps >= max { break; }
 			}
-			if let Err(message) = self.item.compare(view, acc) {
+			if let Err(message) = self.item.compare(view, acc, context) {
 				err = message;
 				break;
 			}
@@ -67,25 +69,26 @@ impl<I, A> Fragment<I, A> for RepeatFragment<I, A> {
 	}
 }
 
-pub struct ChoiceFragment<I, A> {
-	choices: Vec<Box<dyn Fragment<I, A>>>
+pub struct ChoiceFragment<I, A, C> {
+	choices: Vec<Box<dyn Fragment<I, A, C>>>
 }
 
-impl<I, A> ChoiceFragment<I, A> {
-	pub fn new(choices: Vec<Box<dyn Fragment<I, A>>>) -> Self {
+impl<I, A, C> ChoiceFragment<I, A, C> {
+	pub fn new(choices: Vec<Box<dyn Fragment<I, A, C>>>) -> Self {
 		ChoiceFragment { choices }
 	}
 }
 
-impl<I, A> Fragment<I, A> for ChoiceFragment<I, A> {
+impl<I, A, C> Fragment<I, A, C> for ChoiceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut A
+		acc: &mut A,
+		context: &C
 	) -> Result<(), String> {
 		let mut first_err: Option<String> = None;
 		for choice in &self.choices {
-			if let Err(message) = choice.compare(view, acc) {
+			if let Err(message) = choice.compare(view, acc, context) {
 				if first_err.is_none() {
 					first_err = Some(message);
 				}
@@ -97,24 +100,25 @@ impl<I, A> Fragment<I, A> for ChoiceFragment<I, A> {
 	}
 }
 
-pub struct SequenceFragment<I, A> {
-	items: Vec<Box<dyn Fragment<I, A>>>
+pub struct SequenceFragment<I, A, C> {
+	items: Vec<Box<dyn Fragment<I, A, C>>>
 }
 
-impl<I, A> SequenceFragment<I, A> {
-	pub fn new(items: Vec<Box<dyn Fragment<I, A>>>) -> Self {
+impl<I, A, C> SequenceFragment<I, A, C> {
+	pub fn new(items: Vec<Box<dyn Fragment<I, A, C>>>) -> Self {
 		SequenceFragment { items }
 	}
 }
 
-impl<I, A> Fragment<I, A> for SequenceFragment<I, A> {
+impl<I, A, C> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut A
+		acc: &mut A,
+		context: &C
 	) -> Result<(), String> {
 		for item in &self.items {
-			item.compare(view, acc)?;
+			item.compare(view, acc, context)?;
 		}
 		Ok(())
 	}
@@ -134,11 +138,12 @@ mod tests {
 		}
 	}
 
-	impl Fragment<char, String> for TestCharFragment {
+	impl Fragment<char, String, ()> for TestCharFragment {
 		fn compare(
 			&self,
 			view: &mut SequenceView<char>,
-			acc: &mut String
+			acc: &mut String,
+			_context: &()
 		) -> Result<(), String> {
 			if let Some(char) = view.items().first() {
 				if *char == self.char {
@@ -168,19 +173,19 @@ mod tests {
 		let mut strbuf: Vec<char> = vec![];
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from(""));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("fhg", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("fhg", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from(""));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("xfhg", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("xfhg", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("x"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("xxxxxxxxzut", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("xxxxxxxxzut", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("xxxxxxxx"));
     }
 
@@ -195,13 +200,13 @@ mod tests {
 		let mut strbuf: Vec<char> = vec![];
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("", &mut strbuf), &mut str), Err(String::from("Expected 'x'; got nothing.")));
+        assert_eq!(fragment.compare(&mut seq_view("", &mut strbuf), &mut str, &()), Err(String::from("Expected 'x'; got nothing.")));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("x", &mut strbuf), &mut str), Err(String::from("Expected 'x'; got nothing.")));
+        assert_eq!(fragment.compare(&mut seq_view("x", &mut strbuf), &mut str, &()), Err(String::from("Expected 'x'; got nothing.")));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("xx", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("xx", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("xx"));
     }
 
@@ -216,11 +221,11 @@ mod tests {
 		let mut strbuf: Vec<char> = vec![];
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("xxxx", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("xxxx", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("xxxx"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("xxxxx", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("xxxxx", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("xxxx"));
     }
 
@@ -234,15 +239,15 @@ mod tests {
 		let mut strbuf: Vec<char> = vec![];
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("a", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("a", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("a"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("b", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("b", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("b"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("c", &mut strbuf), &mut str), Err(String::from("Expected 'a'; got 'c'.")));
+        assert_eq!(fragment.compare(&mut seq_view("c", &mut strbuf), &mut str, &()), Err(String::from("Expected 'a'; got 'c'.")));
     }
 
     #[test]
@@ -255,14 +260,14 @@ mod tests {
 		let mut strbuf: Vec<char> = vec![];
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("abgfgdh", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("abgfgdh", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("ab"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("abbgfgdh", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("abbgfgdh", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("ab"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("agfgdh", &mut strbuf), &mut str), Err(String::from("Expected 'b'; got 'g'.")));
+        assert_eq!(fragment.compare(&mut seq_view("agfgdh", &mut strbuf), &mut str, &()), Err(String::from("Expected 'b'; got 'g'.")));
     }
 }

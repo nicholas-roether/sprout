@@ -53,7 +53,7 @@ pub struct Token<N> {
 }
 
 impl<N> Token<N> {
-    fn new(name: N, str: String, pos: TokenPosition) -> Self {
+    pub fn new(name: N, str: String, pos: TokenPosition) -> Self {
         return Token { name, str, pos }
     }
 }

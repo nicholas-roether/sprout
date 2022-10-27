@@ -13,11 +13,12 @@ impl CharFragment {
     }
 }
 
-impl Fragment<char, String> for CharFragment {
+impl Fragment<char, String, ()> for CharFragment {
     fn compare(
         &self,
         view: &mut SequenceView<char>,
-        acc: &mut String
+        acc: &mut String,
+        _context: &()
     ) -> Result<(), String> {
         if view.items().is_empty() {
             return Err(format!("Unexpected end of expression; expected '{}'", self.char));
@@ -47,11 +48,12 @@ impl RangeFragment {
     }
 }
 
-impl Fragment<char, String> for RangeFragment {
+impl Fragment<char, String, ()> for RangeFragment {
     fn compare(
         &self,
         view: &mut SequenceView<char>,
-        acc: &mut String
+        acc: &mut String,
+        _context: &()
     ) -> Result<(), String> {
         if view.items().is_empty() {
             return Err(format!("Unexpected end of expression; expected char in range '{}'-'{}'", self.from, self.to))
@@ -103,7 +105,7 @@ impl fmt::Display for ExprParseError {
 }
 
 pub struct TokenMatcher {
-    root_fragment: SequenceFragment<char, String>
+    root_fragment: SequenceFragment<char, String, ()>
 }
 
 impl TokenMatcher {
@@ -117,16 +119,16 @@ impl TokenMatcher {
         let cmp_chars: Vec<char> = string.chars().collect();
         let mut seq_view = SequenceView::new(&cmp_chars);
         let mut result_str = String::new();
-        let result = self.root_fragment.compare(&mut seq_view, &mut result_str);
+        let result = self.root_fragment.compare(&mut seq_view, &mut result_str, &());
         if let Err(msg) = result {
             return Err(format!("(expr:{}) {}", result_str.len(), msg));
         }
         Ok(result_str)
     }
 
-    fn parse_expr(expr: &[char]) -> Result<SequenceFragment<char, String>, ExprParseError> {
-        let mut items: Vec<Box<dyn Fragment<char, String>>> = vec![];
-        let mut current_item: Option<Box<dyn Fragment<char, String>>> = None;
+    fn parse_expr(expr: &[char]) -> Result<SequenceFragment<char, String, ()>, ExprParseError> {
+        let mut items: Vec<Box<dyn Fragment<char, String, ()>>> = vec![];
+        let mut current_item: Option<Box<dyn Fragment<char, String, ()>>> = None;
         let mut mode = ExprParseState::Default;
         let mut buffer: Vec<char> = vec![];
         let mut depth = 0;
@@ -271,8 +273,8 @@ impl TokenMatcher {
         Ok(SequenceFragment::new(items))
     }
 
-    fn parse_choice(expr: &[char]) -> ChoiceFragment<char, String> {
-        let mut choices: Vec<Box<dyn Fragment<char, String>>> = vec![];
+    fn parse_choice(expr: &[char]) -> ChoiceFragment<char, String, ()> {
+        let mut choices: Vec<Box<dyn Fragment<char, String, ()>>> = vec![];
         let mut state = ChoiceParseState::Default;
         let mut last: Option<char> = None;
         let mut escape = false;
@@ -342,19 +344,19 @@ mod tests {
         let mut strbuf: Vec<char> = vec![];
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("a", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("a", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("a"));
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("abc", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("abc", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("a"));
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("fsfd", &mut strbuf), &mut str), Err(String::from("Expected 'a', but got 'f'")));
+        assert_eq!(fragment.compare(&mut seq_view("fsfd", &mut strbuf), &mut str, &()), Err(String::from("Expected 'a', but got 'f'")));
 
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("", &mut strbuf), &mut str), Err(String::from("Unexpected end of expression; expected 'a'")));
+        assert_eq!(fragment.compare(&mut seq_view("", &mut strbuf), &mut str, &()), Err(String::from("Unexpected end of expression; expected 'a'")));
     }
 
     #[test]
@@ -364,22 +366,22 @@ mod tests {
         let mut strbuf: Vec<char> = vec![];
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("0", &mut strbuf), &mut str), Err(String::from("Expected char in range '1'-'3', but got '0'")));
+        assert_eq!(fragment.compare(&mut seq_view("0", &mut strbuf), &mut str, &()), Err(String::from("Expected char in range '1'-'3', but got '0'")));
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("1", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("1", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("1"));
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("2", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("2", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("2"));
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("3", &mut strbuf), &mut str), Ok(()));
+        assert_eq!(fragment.compare(&mut seq_view("3", &mut strbuf), &mut str, &()), Ok(()));
 		assert_eq!(str, String::from("3"));
 
         let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("4", &mut strbuf), &mut str), Err(String::from("Expected char in range '1'-'3', but got '4'")));
+        assert_eq!(fragment.compare(&mut seq_view("4", &mut strbuf), &mut str, &()), Err(String::from("Expected char in range '1'-'3', but got '4'")));
     }
 
     #[test]

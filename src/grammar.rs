@@ -23,15 +23,14 @@ enum GrammarTreeNode<PN, TN> {
 	Token(Token<TN>)
 }
 
-struct GrammarTreeBuilder<'a, PN, TN> {
-	grammar: &'a Grammar<'a, PN, TN>,
+struct GrammarTreeBuilder<PN, TN> {
 	tree_stack: Vec<Tree<GrammarTreeNode<PN, TN>>>,
 	result: Result<Tree<GrammarTreeNode<PN, TN>>, String>
 }
 
-impl<'a, PN, TN> GrammarTreeBuilder<'a, PN, TN> {
-	fn new(grammar: &'a Grammar<'a, PN, TN>) -> Self {
-		GrammarTreeBuilder { grammar, tree_stack: vec![], result: Err(String::from("Syntax tree is incomplete!")) }
+impl<PN, TN> GrammarTreeBuilder<PN, TN> {
+	fn new() -> Self {
+		GrammarTreeBuilder { tree_stack: vec![], result: Err(String::from("Syntax tree is incomplete!")) }
 	}
 
 	fn current_proc_mut<'b>(&'b mut self) -> &'b mut Tree<GrammarTreeNode<PN, TN>> {
@@ -67,11 +66,12 @@ impl<TN> GrammarTokenFragment<TN> {
 	}
 }
 
-impl<'a, PN, TN: Eq + Copy + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<'a, PN, TN>> for GrammarTokenFragment<TN> {
+impl<'a, PN, TN: Eq + Copy + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<Token<TN>>,
-		acc: &mut GrammarTreeBuilder<'a, PN, TN>
+		acc: &mut GrammarTreeBuilder<PN, TN>,
+		_context: &Grammar<PN, TN>
 	) -> Result<(), String> {
 		if view.items().is_empty() {
 			return Err(format!("Unexpected end of file; expected {}", self.name))
@@ -96,45 +96,46 @@ impl<PN> GrammarProcFragment<PN> {
 	}
 }
 
-impl<'a, PN: Eq + Copy + fmt::Display, TN> Fragment<Token<TN>, GrammarTreeBuilder<'a, PN, TN>> for GrammarProcFragment<PN> {
+impl<'a, PN: Eq + Copy + fmt::Display, TN> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<Token<TN>>,
-		acc: &mut GrammarTreeBuilder<'a, PN, TN>
+		acc: &mut GrammarTreeBuilder<PN, TN>,
+		context: &Grammar<PN, TN>
 	) -> Result<(), String> {
 		if view.items().is_empty() {
 			return Err(format!("Unexpected end of file; expected {}", self.name))
 		}
 		acc.push_proc(self.name);
-		acc.grammar.compare_proc(self.name, view, acc)?;
+		context.compare_proc(self.name, view, acc)?;
 		acc.pop_proc();
 		Ok(())
 	}
 }
 
-struct GrammarProc<'a, PN, TN> {
+struct GrammarProc<PN, TN> {
 	name: PN,
-	fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<'a, PN, TN>>>
+	fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>
 }
 
-impl<'a, PN, TN> GrammarProc<'a, PN, TN> {
-	fn new(name: PN, fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<'a, PN, TN>>>) -> Self {
+impl<PN, TN> GrammarProc<PN, TN> {
+	fn new(name: PN, fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>) -> Self {
 		GrammarProc { name, fragment }
 	}
 }
 
-struct Grammar<'a, PN, TN> {
-	procs: Vec<GrammarProc<'a, PN, TN>>
+struct Grammar<PN, TN> {
+	procs: Vec<GrammarProc<PN, TN>>
 }
 
-impl<'a, PN: Eq, TN> Grammar<'a, PN, TN> {
-	pub fn new(procs: Vec<GrammarProc<'a, PN, TN>>) -> Self {
+impl<PN: Eq, TN> Grammar<PN, TN> {
+	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
 		Grammar { procs }
 	}
 
-	pub fn parse(&'a self, proc: PN, tokens: Vec<Token<TN>>) -> Result<Tree<GrammarTreeNode<PN, TN>>, String> {
+	pub fn parse(&self, proc: PN, tokens: Vec<Token<TN>>) -> Result<Tree<GrammarTreeNode<PN, TN>>, String> {
 		let mut seq_view = SequenceView::new(&tokens);
-		let mut tree_builder: GrammarTreeBuilder<'a, PN, TN> = GrammarTreeBuilder::new(&self);
+		let mut tree_builder: GrammarTreeBuilder<PN, TN> = GrammarTreeBuilder::new();
 		self.compare_proc(proc, &mut seq_view, &mut tree_builder)?;
 		tree_builder.result
 	}
@@ -143,11 +144,11 @@ impl<'a, PN: Eq, TN> Grammar<'a, PN, TN> {
 		&self,
 		proc: PN,
 		view: &mut SequenceView<Token<TN>>,
-		acc: &mut GrammarTreeBuilder<'a, PN, TN>
+		acc: &mut GrammarTreeBuilder<PN, TN>,
 	) -> Result<(), String> {
 		let mut first_error: Option<String> = None;
 		for proc in self.procs.iter().filter(|p| p.name == proc) {
-			if let Err(msg) = proc.fragment.compare(view, acc) {
+			if let Err(msg) = proc.fragment.compare(view, acc, &self) {
 				if first_error.is_none() {
 					first_error = Some(msg);
 				}
@@ -159,9 +160,10 @@ impl<'a, PN: Eq, TN> Grammar<'a, PN, TN> {
 	}
 }
 
+#[macro_export]
 macro_rules! grammar_part_sequence {
 	($($part:tt),+) => {
-		crate::fragment::SequenceFragment::new(vec![
+		$crate::fragment::SequenceFragment::new(vec![
 			$(Box::new($part)),+
 		])
 	};
@@ -173,8 +175,8 @@ macro_rules! grammar_part_sequence {
 #[macro_export]
 macro_rules! grammar {
 	($($proc_name:expr => $($name:expr),+;)*) => {
-		crate::grammar::Grammar::new(vec![
-			$(crate::grammar::GrammarProc::new($proc_name, Box::new(grammar_part_sequence!($(($name)),+)))),*
+		$crate::grammar::Grammar::new(vec![
+			$($crate::grammar::GrammarProc::new($proc_name, Box::new(grammar_part_sequence!($(($name)),+)))),*
 		])
 	};
 }
@@ -182,13 +184,13 @@ macro_rules! grammar {
 #[macro_export]
 macro_rules! token {
 	($name:expr) => {
-		crate::grammar::GrammarTokenFragment::new($name)
+		$crate::grammar::GrammarTokenFragment::new($name)
 	};
 }
 
 #[macro_export]
 macro_rules! proc {
 	($name:expr) => {
-		crate::grammar::GrammarProcFragment::new($name)
+		$crate::grammar::GrammarProcFragment::new($name)
 	};
 }
