@@ -2,12 +2,12 @@ use std::{vec, slice, fmt::{self, Debug}};
 
 use crate::token_match::{TokenMatcher, ExprParseError};
 
-struct TokenDefinition<N: Eq + Copy> {
+struct TokenDefinition<N> {
     name: N,
     matcher: TokenMatcher
 }
 
-impl<N: Eq + Copy> TokenDefinition<N> {
+impl<N> TokenDefinition<N> {
     fn new(name: N, matcher: TokenMatcher) -> Self {
         TokenDefinition { name, matcher }
     }
@@ -45,30 +45,30 @@ impl fmt::Display for TokenPosition {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct Token<N: Eq + Copy + Debug> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Token<N> {
     pub name: N,
     pub str: String,
     pub pos: TokenPosition
 }
 
-impl<N: Eq + Copy + Debug> Token<N> {
+impl<N> Token<N> {
     fn new(name: N, str: String, pos: TokenPosition) -> Self {
         return Token { name, str, pos }
     }
 }
 
-impl<N: Eq + Copy + Debug> fmt::Display for Token<N> {
+impl<N: fmt::Display> fmt::Display for Token<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}(\"{}\") at {}", self.name, self.str, self.pos)
+        write!(f, "{} \"{}\" at {}", self.name, self.str, self.pos)
     }
 }
 
-pub struct Alphabet<N: Eq + Copy + Debug> {
+pub struct Alphabet<N> {
     token_defs: Vec<TokenDefinition<N>>
 }
 
-impl<N: Eq + Copy + Debug> Alphabet<N> {
+impl<N: Copy> Alphabet<N> {
     pub fn new() -> Self {
         Alphabet { token_defs: vec![] }
     }

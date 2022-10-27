@@ -13,13 +13,11 @@ impl CharFragment {
     }
 }
 
-impl Fragment<char> for CharFragment {
-    type Acc = String;
-
+impl Fragment<char, String> for CharFragment {
     fn compare(
         &self,
-        view: &mut crate::fragment::SequenceView<char>,
-        acc: &mut Self::Acc
+        view: &mut SequenceView<char>,
+        acc: &mut String
     ) -> Result<(), String> {
         if view.items().is_empty() {
             return Err(format!("Unexpected end of expression; expected '{}'", self.char));
@@ -49,13 +47,11 @@ impl RangeFragment {
     }
 }
 
-impl Fragment<char> for RangeFragment {
-    type Acc = String;
-
+impl Fragment<char, String> for RangeFragment {
     fn compare(
         &self,
         view: &mut SequenceView<char>,
-        acc: &mut Self::Acc
+        acc: &mut String
     ) -> Result<(), String> {
         if view.items().is_empty() {
             return Err(format!("Unexpected end of expression; expected char in range '{}'-'{}'", self.from, self.to))
@@ -129,8 +125,8 @@ impl TokenMatcher {
     }
 
     fn parse_expr(expr: &[char]) -> Result<SequenceFragment<char, String>, ExprParseError> {
-        let mut items: Vec<Box<dyn Fragment<char, Acc = String>>> = vec![];
-        let mut current_item: Option<Box<dyn Fragment<char, Acc = String>>> = None;
+        let mut items: Vec<Box<dyn Fragment<char, String>>> = vec![];
+        let mut current_item: Option<Box<dyn Fragment<char, String>>> = None;
         let mut mode = ExprParseState::Default;
         let mut buffer: Vec<char> = vec![];
         let mut depth = 0;
@@ -276,7 +272,7 @@ impl TokenMatcher {
     }
 
     fn parse_choice(expr: &[char]) -> ChoiceFragment<char, String> {
-        let mut choices: Vec<Box<dyn Fragment<char, Acc = String>>> = vec![];
+        let mut choices: Vec<Box<dyn Fragment<char, String>>> = vec![];
         let mut state = ChoiceParseState::Default;
         let mut last: Option<char> = None;
         let mut escape = false;

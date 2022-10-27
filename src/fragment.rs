@@ -22,35 +22,31 @@ impl<'a, I> SequenceView<'a, I> {
 }
 
 
-pub trait Fragment<I> {
-	type Acc;
-
+pub trait Fragment<I, A> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut Self::Acc
+		acc: &mut A
 	) -> Result<(), String>;
 }
 
 pub struct RepeatFragment<I, A> {
-	item: Box<dyn Fragment<I, Acc = A>>,
+	item: Box<dyn Fragment<I, A>>,
 	min_reps: u32,
 	max_reps: Option<u32>
 }
 
 impl<I, A> RepeatFragment<I, A> {
-	pub fn new(item: Box<dyn Fragment<I, Acc = A>>, min_reps: u32, max_reps: Option<u32>) -> Self {
+	pub fn new(item: Box<dyn Fragment<I, A>>, min_reps: u32, max_reps: Option<u32>) -> Self {
 		RepeatFragment { item, min_reps, max_reps }
 	}
 }
 
-impl<I, A> Fragment<I> for RepeatFragment<I, A> {
-	type Acc = A;
-
+impl<I, A> Fragment<I, A> for RepeatFragment<I, A> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut Self::Acc
+		acc: &mut A
 	) -> Result<(), String> {
 		let mut num_reps: u32 = 0;
 		let mut err = String::from("Unexpected parsing error");
@@ -72,22 +68,20 @@ impl<I, A> Fragment<I> for RepeatFragment<I, A> {
 }
 
 pub struct ChoiceFragment<I, A> {
-	choices: Vec<Box<dyn Fragment<I, Acc = A>>>
+	choices: Vec<Box<dyn Fragment<I, A>>>
 }
 
 impl<I, A> ChoiceFragment<I, A> {
-	pub fn new(choices: Vec<Box<dyn Fragment<I, Acc = A>>>) -> Self {
+	pub fn new(choices: Vec<Box<dyn Fragment<I, A>>>) -> Self {
 		ChoiceFragment { choices }
 	}
 }
 
-impl<I, A> Fragment<I> for ChoiceFragment<I, A> {
-	type Acc = A;
-
+impl<I, A> Fragment<I, A> for ChoiceFragment<I, A> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut Self::Acc
+		acc: &mut A
 	) -> Result<(), String> {
 		let mut first_err: Option<String> = None;
 		for choice in &self.choices {
@@ -104,22 +98,20 @@ impl<I, A> Fragment<I> for ChoiceFragment<I, A> {
 }
 
 pub struct SequenceFragment<I, A> {
-	items: Vec<Box<dyn Fragment<I, Acc = A>>>
+	items: Vec<Box<dyn Fragment<I, A>>>
 }
 
 impl<I, A> SequenceFragment<I, A> {
-	pub fn new(items: Vec<Box<dyn Fragment<I, Acc = A>>>) -> Self {
+	pub fn new(items: Vec<Box<dyn Fragment<I, A>>>) -> Self {
 		SequenceFragment { items }
 	}
 }
 
-impl<I, A> Fragment<I> for SequenceFragment<I, A> {
-	type Acc = A;
-
+impl<I, A> Fragment<I, A> for SequenceFragment<I, A> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
-		acc: &mut Self::Acc
+		acc: &mut A
 	) -> Result<(), String> {
 		for item in &self.items {
 			item.compare(view, acc)?;
@@ -142,9 +134,7 @@ mod tests {
 		}
 	}
 
-	impl Fragment<char> for TestCharFragment {
-		type Acc = String;
-
+	impl Fragment<char, String> for TestCharFragment {
 		fn compare(
 			&self,
 			view: &mut SequenceView<char>,
