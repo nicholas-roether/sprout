@@ -24,6 +24,22 @@ pub enum GrammarTreeNode<PN, TN> {
 	Token(Token<TN>)
 }
 
+impl<PN: Copy, TN> GrammarTreeNode<PN, TN> {
+	pub fn as_proc(&self) -> Option<PN> {
+		if let GrammarTreeNode::Proc(proc_name) = self {
+			return Some(*proc_name);
+		}
+		None
+	}
+
+	pub fn as_token(&self) -> Option<&Token<TN>> {
+		if let GrammarTreeNode::Token(token) = self {
+			return Some(token);
+		}
+		None
+	}
+}
+
 #[derive(Debug, Clone)]
 pub struct GrammarTreeBuilder<PN: Clone, TN: Clone> {
 	tree_stack: Vec<Tree<GrammarTreeNode<PN, TN>>>,
