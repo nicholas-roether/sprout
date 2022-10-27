@@ -169,7 +169,7 @@ macro_rules! grammar {
 			$($crate::grammar::GrammarProc::new($proc_name, Box::new($part))),*
 		])
 	};
-	($($proc_name:expr => $($part:expr),+;)*) => {
+	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
 		$crate::grammar::Grammar::new(vec![
 			$($crate::grammar::GrammarProc::new($proc_name, Box::new(
 				$crate::fragments::SequenceFragment::new(vec![

@@ -111,7 +111,7 @@ impl<N: Copy> Alphabet<N> {
 
 #[macro_export]
 macro_rules! alphabet {
-    ($($match_expr:literal=>$name:expr),*) => {
+    ($($name:expr=>$match_expr:expr);*$(;)?) => {
         {
             let mut alphabet = $crate::tokenize::Alphabet::new();
             $({
@@ -133,8 +133,8 @@ mod tests {
     #[test]
     fn can_register_tokens() {
         let abc = alphabet! {
-            "a" => 0,
-            "b" => 1
+            0 => "a";
+            1 => "b";
         };
 
         let mut defs = abc.iter();
@@ -153,8 +153,8 @@ mod tests {
     #[test]
     fn allows_duplicates() {
         let abc = alphabet! {
-            "a" => 0,
-            "b" => 0
+            0 => "a";
+            0 => "b";
         };
 
         let mut defs = abc.iter();
@@ -181,10 +181,10 @@ mod tests {
         }
 
         let abc = alphabet! {
-            "ax" => TokenName::AX,
-            "a"  => TokenName::A,
-            "b"  => TokenName::B,
-            "\n" => TokenName::EOL
+            TokenName::AX => "ax";
+            TokenName::A => "a";
+            TokenName::B => "b";
+            TokenName::EOL => "\n";
         };
         let tokens = abc.tokenize(String::from("aaxb\na"));
         assert!(tokens.is_ok(), "Should tokenize \"axb\\na\"");
