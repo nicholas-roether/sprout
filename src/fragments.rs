@@ -124,6 +124,28 @@ impl<I, A, C> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 	}
 }
 
+#[macro_export]
+macro_rules! repeat {
+	($frag:expr) => {
+		$crate::fragments::RepeatFragment::new(Box::new($frag), 0, None)
+	};
+	($frag:expr, $min:expr) => {
+		$crate::fragments::RepeatFragment::new(Box::new($frag), $min, None)
+	};
+	($frag:expr, $min:expr, $max:expr) => {
+		$crate::fragments::RepeatFragment::new(Box::new($frag), $min, Some($max))
+	};
+}
+
+#[macro_export]
+macro_rules! choice {
+	($($frag:expr),*) => {
+		$crate::fragments::ChoiceFragment::new(
+			vec![$(Box::new($frag)),*]
+		)
+	};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,11 +186,7 @@ mod tests {
 
     #[test]
     fn repeat_fragment_works() {
-        let fragment = RepeatFragment::new(
-            Box::new(TestCharFragment::new('x')),
-            0,
-            None
-        );
+        let fragment = repeat!(TestCharFragment::new('x'));
 
 		let mut strbuf: Vec<char> = vec![];
 
@@ -191,11 +209,7 @@ mod tests {
 
     #[test]
     fn repeat_fragment_min_reps_works() {
-        let fragment = RepeatFragment::new(
-            Box::new(TestCharFragment::new('x')),
-            2,
-            None
-        );
+        let fragment = repeat!(TestCharFragment::new('x'), 2);
 
 		let mut strbuf: Vec<char> = vec![];
 
@@ -212,11 +226,7 @@ mod tests {
 
     #[test]
     fn repeat_fragment_max_reps_works() {
-        let fragment = RepeatFragment::new(
-            Box::new(TestCharFragment::new('x')),
-            0,
-            Some(4)
-        );
+        let fragment = repeat!(TestCharFragment::new('x'), 0, 4);
 
 		let mut strbuf: Vec<char> = vec![];
 
@@ -231,10 +241,10 @@ mod tests {
 
     #[test]
     fn choice_fragment_works() {
-        let fragment = ChoiceFragment::new(vec![
-            Box::new(TestCharFragment::new('a')),
-            Box::new(TestCharFragment::new('b'))
-        ]);
+        let fragment = choice![
+            TestCharFragment::new('a'),
+            TestCharFragment::new('b')
+        ];
 
 		let mut strbuf: Vec<char> = vec![];
 

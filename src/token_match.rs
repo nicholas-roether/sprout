@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::fragment::{Fragment, SequenceFragment, SequenceView, RepeatFragment, ChoiceFragment};
+use crate::fragments::{Fragment, SequenceFragment, SequenceView, RepeatFragment, ChoiceFragment};
 
 
 struct CharFragment {

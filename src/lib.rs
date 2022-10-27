@@ -6,7 +6,7 @@ use grammar::{Grammar, GrammarTreeNode};
 use tokenize::Alphabet;
 use trees::Tree;
 
-mod fragment;
+mod fragments;
 
 mod token_match;
 

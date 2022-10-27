@@ -2,7 +2,7 @@ use std::fmt;
 
 use trees::{Tree, tr};
 
-use crate::{tokenize::Token, fragment::{Fragment, SequenceView}};
+use crate::{tokenize::Token, fragments::{Fragment, SequenceView}};
 
 enum GrammarItemName<PN, TN> {
 	Terminal(TN),
@@ -172,7 +172,7 @@ macro_rules! grammar {
 	($($proc_name:expr => $($part:expr),+;)*) => {
 		$crate::grammar::Grammar::new(vec![
 			$($crate::grammar::GrammarProc::new($proc_name, Box::new(
-				$crate::fragment::SequenceFragment::new(vec![
+				$crate::fragments::SequenceFragment::new(vec![
 					$(Box::new($part)),+
 				])
 			))),*
@@ -193,7 +193,6 @@ macro_rules! proc {
 		$crate::grammar::GrammarProcFragment::new($name)
 	};
 }
-
 #[cfg(test)]
 mod tests {
     use trees::tr;
