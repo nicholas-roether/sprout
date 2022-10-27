@@ -146,6 +146,13 @@ macro_rules! choice {
 	};
 }
 
+#[macro_export]
+macro_rules! optional {
+	($frag:expr) => {
+		$crate::fragments::RepeatFragment::new(Box::new($frag), 0, Some(1))
+	};
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
