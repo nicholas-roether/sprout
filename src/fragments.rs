@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 pub struct SequenceView<'a, I> {
 	index: usize,
 	items: &'a [I]
@@ -32,7 +34,7 @@ impl<'a, I> Clone for SequenceView<'a, I> {
 }
 
 
-pub trait Fragment<I, A, C> {
+pub trait Fragment<I, A, C> where Self: Debug {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
@@ -41,6 +43,7 @@ pub trait Fragment<I, A, C> {
 	) -> Result<(), String>;
 }
 
+#[derive(Debug)]
 pub struct RepeatFragment<I, A, C> {
 	item: Box<dyn Fragment<I, A, C>>,
 	min_reps: u32,
@@ -53,7 +56,7 @@ impl<I, A, C> RepeatFragment<I, A, C> {
 	}
 }
 
-impl<I, A, C> Fragment<I, A, C> for RepeatFragment<I, A, C> {
+impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for RepeatFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
@@ -79,6 +82,7 @@ impl<I, A, C> Fragment<I, A, C> for RepeatFragment<I, A, C> {
 	}
 }
 
+#[derive(Debug)]
 pub struct ChoiceFragment<I, A, C> {
 	choices: Vec<Box<dyn Fragment<I, A, C>>>
 }
@@ -89,7 +93,7 @@ impl<I, A, C> ChoiceFragment<I, A, C> {
 	}
 }
 
-impl<I, A, C> Fragment<I, A, C> for ChoiceFragment<I, A, C> {
+impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for ChoiceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
@@ -110,6 +114,7 @@ impl<I, A, C> Fragment<I, A, C> for ChoiceFragment<I, A, C> {
 	}
 }
 
+#[derive(Debug)]
 pub struct SequenceFragment<I, A, C> {
 	items: Vec<Box<dyn Fragment<I, A, C>>>
 }
@@ -120,7 +125,7 @@ impl<I, A, C> SequenceFragment<I, A, C> {
 	}
 }
 
-impl<I, A: Clone, C> Fragment<I, A, C> for SequenceFragment<I, A, C> {
+impl<I: Debug, A: Debug + Clone, C: Debug> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
@@ -133,7 +138,7 @@ impl<I, A: Clone, C> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 		for item in &self.items {
 			item.compare(&mut seq_view_clone, &mut acc_clone, context)?;
 		}
-		
+
 		*view = seq_view_clone;
 		*acc = acc_clone;
 		Ok(())
@@ -146,6 +151,7 @@ mod tests {
 
     use super::*;
 
+	#[derive(Debug)]
 	struct TestCharFragment {
 		char: char
 	}

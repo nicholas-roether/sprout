@@ -16,12 +16,13 @@ pub mod tokenize;
 
 pub mod grammar;
 
-pub struct Parser<PN: Eq + Copy + fmt::Display, TN: Eq + Copy + fmt::Display> {
+#[derive(Debug)]
+pub struct Parser<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> {
 	alphabet: Alphabet<TN>,
 	grammar: Grammar<PN, TN>
 }
 
-impl<PN: Eq + Copy + fmt::Display, TN: Eq + Copy + fmt::Display> Parser<PN, TN> {
+impl<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> Parser<PN, TN> {
 	pub fn new(alphabet: Alphabet<TN>, grammar: Grammar<PN, TN>) -> Self {
 		Parser { alphabet, grammar }
 	}

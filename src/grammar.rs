@@ -24,7 +24,7 @@ pub enum GrammarTreeNode<PN, TN> {
 	Token(Token<TN>)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GrammarTreeBuilder<PN: Clone, TN: Clone> {
 	tree_stack: Vec<Tree<GrammarTreeNode<PN, TN>>>,
 	result: Result<Tree<GrammarTreeNode<PN, TN>>, String>
@@ -58,6 +58,7 @@ impl<PN: Clone, TN: Clone> GrammarTreeBuilder<PN, TN> {
 	}
 }
 
+#[derive(Debug)]
 pub struct GrammarTokenFragment<TN> {
 	name: TN
 }
@@ -68,7 +69,7 @@ impl<TN> GrammarTokenFragment<TN> {
 	}
 }
 
-impl<'a, PN: Copy, TN: Eq + Copy + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
+impl<'a, PN: Copy, TN: Eq + Copy + fmt::Debug + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<Token<TN>>,
@@ -88,6 +89,7 @@ impl<'a, PN: Copy, TN: Eq + Copy + fmt::Display> Fragment<Token<TN>, GrammarTree
 	}
 }
 
+#[derive(Debug)]
 pub struct GrammarProcFragment<PN> {
 	name: PN
 }
@@ -98,7 +100,7 @@ impl<PN> GrammarProcFragment<PN> {
 	}
 }
 
-impl<'a, PN: Eq + Copy + fmt::Display, TN: Copy> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
+impl<'a, PN: Eq + Copy + fmt::Debug + fmt::Display, TN: Copy> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<Token<TN>>,
@@ -113,6 +115,7 @@ impl<'a, PN: Eq + Copy + fmt::Display, TN: Copy> Fragment<Token<TN>, GrammarTree
 	}
 }
 
+#[derive(Debug)]
 pub struct GrammarProc<PN: Clone, TN: Clone> {
 	name: PN,
 	fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>
@@ -124,6 +127,7 @@ impl<PN: Clone, TN: Clone> GrammarProc<PN, TN> {
 	}
 }
 
+#[derive(Debug)]
 pub struct Grammar<PN: Clone, TN: Clone> {
 	procs: Vec<GrammarProc<PN, TN>>
 }

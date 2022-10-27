@@ -3,6 +3,7 @@ use std::fmt;
 use crate::fragments::{Fragment, SequenceFragment, SequenceView, RepeatFragment, ChoiceFragment};
 
 
+#[derive(Debug)]
 struct CharFragment {
     char: char
 }
@@ -37,6 +38,7 @@ impl Fragment<char, String, ()> for CharFragment {
     }
 }
 
+#[derive(Debug)]
 pub struct RangeFragment {
     from: char,
     to: char
@@ -104,6 +106,7 @@ impl fmt::Display for ExprParseError {
     }
 }
 
+#[derive(Debug)]
 pub struct TokenMatcher {
     root_fragment: SequenceFragment<char, String, ()>
 }

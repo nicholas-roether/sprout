@@ -2,6 +2,7 @@ use std::{vec, slice, fmt::{self, Debug}};
 
 use crate::token_match::{TokenMatcher, ExprParseError};
 
+#[derive(Debug)]
 struct TokenDefinition<N> {
     name: N,
     matcher: TokenMatcher
@@ -64,6 +65,7 @@ impl<N: fmt::Display> fmt::Display for Token<N> {
     }
 }
 
+#[derive(Debug)]
 pub struct Alphabet<N> {
     token_defs: Vec<TokenDefinition<N>>
 }
