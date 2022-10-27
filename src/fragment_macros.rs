@@ -23,7 +23,7 @@ macro_rules! choice {
 #[macro_export]
 macro_rules! optional {
 	($($part:expr),+) => {
-		$crate::fragments::RepeatFragment::new(Box::new($crate::sequence!($frag)), 0, Some(1))
+		$crate::fragments::RepeatFragment::new(Box::new($crate::sequence!($($part),+)), 0, Some(1))
 	};
 }
 
