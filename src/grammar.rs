@@ -18,18 +18,19 @@ impl<PN: fmt::Display, TN: fmt::Display> fmt::Display for GrammarItemName<PN, TN
 	}
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum GrammarTreeNode<PN, TN> {
 	Proc(PN),
 	Token(Token<TN>)
 }
 
-pub struct GrammarTreeBuilder<PN, TN> {
+#[derive(Clone)]
+pub struct GrammarTreeBuilder<PN: Clone, TN: Clone> {
 	tree_stack: Vec<Tree<GrammarTreeNode<PN, TN>>>,
 	result: Result<Tree<GrammarTreeNode<PN, TN>>, String>
 }
 
-impl<PN, TN> GrammarTreeBuilder<PN, TN> {
+impl<PN: Clone, TN: Clone> GrammarTreeBuilder<PN, TN> {
 	fn new() -> Self {
 		GrammarTreeBuilder { tree_stack: vec![], result: Err(String::from("Syntax tree is incomplete!")) }
 	}
@@ -67,7 +68,7 @@ impl<TN> GrammarTokenFragment<TN> {
 	}
 }
 
-impl<'a, PN, TN: Eq + Copy + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
+impl<'a, PN: Copy, TN: Eq + Copy + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<Token<TN>>,
@@ -97,7 +98,7 @@ impl<PN> GrammarProcFragment<PN> {
 	}
 }
 
-impl<'a, PN: Eq + Copy + fmt::Display, TN> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
+impl<'a, PN: Eq + Copy + fmt::Display, TN: Copy> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<Token<TN>>,
@@ -112,22 +113,22 @@ impl<'a, PN: Eq + Copy + fmt::Display, TN> Fragment<Token<TN>, GrammarTreeBuilde
 	}
 }
 
-pub struct GrammarProc<PN, TN> {
+pub struct GrammarProc<PN: Clone, TN: Clone> {
 	name: PN,
 	fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>
 }
 
-impl<PN, TN> GrammarProc<PN, TN> {
+impl<PN: Clone, TN: Clone> GrammarProc<PN, TN> {
 	pub fn new(name: PN, fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>) -> Self {
 		GrammarProc { name, fragment }
 	}
 }
 
-pub struct Grammar<PN, TN> {
+pub struct Grammar<PN: Clone, TN: Clone> {
 	procs: Vec<GrammarProc<PN, TN>>
 }
 
-impl<PN: Eq + Copy, TN> Grammar<PN, TN> {
+impl<PN: Eq + Copy, TN: Copy> Grammar<PN, TN> {
 	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
 		Grammar { procs }
 	}

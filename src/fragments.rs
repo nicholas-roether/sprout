@@ -12,12 +12,22 @@ impl<'a, I> SequenceView<'a, I> {
 		self.items = &self.items[steps..];
 	}
 
+	pub fn set_index(&mut self, index: usize) {
+		self.index = index;
+	}
+
 	pub fn items(&self) -> &'a [I] {
 		&self.items[self.index..]
 	}
 
 	pub fn index(&self) -> usize {
 		self.index
+	}
+}
+
+impl<'a, I> Clone for SequenceView<'a, I> {
+	fn clone(&self) -> Self {
+		SequenceView { index: self.index, items: self.items }
 	}
 }
 
@@ -110,16 +120,22 @@ impl<I, A, C> SequenceFragment<I, A, C> {
 	}
 }
 
-impl<I, A, C> Fragment<I, A, C> for SequenceFragment<I, A, C> {
+impl<I, A: Clone, C> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
 		acc: &mut A,
 		context: &C
 	) -> Result<(), String> {
+		let mut seq_view_clone = view.clone();
+		let mut acc_clone = acc.clone();
+
 		for item in &self.items {
-			item.compare(view, acc, context)?;
+			item.compare(&mut seq_view_clone, &mut acc_clone, context)?;
 		}
+		
+		*view = seq_view_clone;
+		*acc = acc_clone;
 		Ok(())
 	}
 }
