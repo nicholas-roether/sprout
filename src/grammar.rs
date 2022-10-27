@@ -24,7 +24,7 @@ pub enum GrammarTreeNode<PN, TN> {
 	Token(Token<TN>)
 }
 
-struct GrammarTreeBuilder<PN, TN> {
+pub struct GrammarTreeBuilder<PN, TN> {
 	tree_stack: Vec<Tree<GrammarTreeNode<PN, TN>>>,
 	result: Result<Tree<GrammarTreeNode<PN, TN>>, String>
 }
@@ -118,7 +118,7 @@ pub struct GrammarProc<PN, TN> {
 }
 
 impl<PN, TN> GrammarProc<PN, TN> {
-	fn new(name: PN, fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>) -> Self {
+	pub fn new(name: PN, fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>) -> Self {
 		GrammarProc { name, fragment }
 	}
 }
@@ -163,22 +163,19 @@ impl<PN: Eq + Copy, TN> Grammar<PN, TN> {
 }
 
 #[macro_export]
-macro_rules! grammar_part_sequence {
-	($($part:tt),+) => {
-		$crate::fragment::SequenceFragment::new(vec![
-			$(Box::new($part)),+
+macro_rules! grammar {
+	($($proc_name:expr => $part:expr)*) => {
+		$crate::grammar::Grammar::new(vec![
+			$($crate::grammar::GrammarProc::new($proc_name, Box::new($part))),*
 		])
 	};
-	($part:expr) => {
-		$part
-	};
-}
-
-#[macro_export]
-macro_rules! grammar {
-	($($proc_name:expr => $($name:expr),+;)*) => {
+	($($proc_name:expr => $($part:expr),+;)*) => {
 		$crate::grammar::Grammar::new(vec![
-			$($crate::grammar::GrammarProc::new($proc_name, Box::new(grammar_part_sequence!($(($name)),+)))),*
+			$($crate::grammar::GrammarProc::new($proc_name, Box::new(
+				$crate::fragment::SequenceFragment::new(vec![
+					$(Box::new($part)),+
+				])
+			))),*
 		])
 	};
 }
