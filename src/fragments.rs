@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+#[derive(Debug)]
 pub struct SequenceView<'a, I> {
 	index: usize,
 	items: &'a [I]
@@ -11,7 +12,7 @@ impl<'a, I> SequenceView<'a, I> {
 	}
 
 	pub fn advance(&mut self, steps: usize) {
-		self.items = &self.items[steps..];
+		self.index += steps;
 	}
 
 	pub fn set_index(&mut self, index: usize) {
@@ -56,7 +57,7 @@ impl<I, A, C> RepeatFragment<I, A, C> {
 	}
 }
 
-impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for RepeatFragment<I, A, C> {
+impl<I: Debug, A: Debug + Clone, C: Debug> Fragment<I, A, C> for RepeatFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
@@ -64,19 +65,19 @@ impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for RepeatFragment<I, A, C>
 		context: &C
 	) -> Result<(), String> {
 		let mut num_reps: u32 = 0;
-		let mut err = String::from("Unexpected parsing error");
+		let mut last_err = String::from("Unexpected parsing error");
 		loop {
 			if let Some(max) = self.max_reps{
 				if num_reps >= max { break; }
 			}
 			if let Err(message) = self.item.compare(view, acc, context) {
-				err = message;
+				last_err = message;
 				break;
 			}
 			num_reps += 1;
 		}
 		if num_reps < self.min_reps {
-			return Err(err);
+			return Err(last_err);
 		}
 		Ok(())
 	}
@@ -147,16 +148,18 @@ impl<I, A, C> SequenceFragment<I, A, C> {
 	}
 }
 
-impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for SequenceFragment<I, A, C> {
+impl<I: Debug, A: Debug + Clone, C: Debug> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
 		acc: &mut A,
 		context: &C
 	) -> Result<(), String> {
+		let mut acc_clone = acc.clone();
 		for item in &self.items {
-			item.compare(view, acc, context)?;
+			item.compare(view, &mut acc_clone, context)?;
 		}
+		*acc = acc_clone;
 		Ok(())
 	}
 }
@@ -298,4 +301,15 @@ mod tests {
 		let mut str = String::new();
         assert_eq!(fragment.compare(&mut seq_view("agfgdh", &mut strbuf), &mut str, &()), Err(String::from("Expected 'b'; got 'g'.")));
     }
+
+	#[test]
+	fn repeat_with_partial_match_works() {
+		let fragment = repeat!(TestCharFragment::new('a'), TestCharFragment::new('b'));
+
+		let mut strbuf: Vec<char> = vec![];
+
+		let mut str = String::new();
+        assert_eq!(fragment.compare(&mut seq_view("ababaaaaa", &mut strbuf), &mut str, &()), Ok(()));
+		assert_eq!(str, String::from("abab"));
+	}
 }

@@ -124,7 +124,7 @@ impl TokenMatcher {
         let mut result_str = String::new();
         let result = self.root_fragment.compare(&mut seq_view, &mut result_str, &());
         if let Err(msg) = result {
-            return Err(format!("(expr:{}) {}", result_str.len(), msg));
+            return Err(format!("(expr:{}) {}", seq_view.index(), msg));
         }
         Ok(result_str)
     }
