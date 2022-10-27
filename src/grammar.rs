@@ -19,7 +19,7 @@ impl<PN: fmt::Display, TN: fmt::Display> fmt::Display for GrammarItemName<PN, TN
 }
 
 #[derive(Debug, PartialEq, Eq)]
-enum GrammarTreeNode<PN, TN> {
+pub enum GrammarTreeNode<PN, TN> {
 	Proc(PN),
 	Token(Token<TN>)
 }
@@ -112,7 +112,7 @@ impl<'a, PN: Eq + Copy + fmt::Display, TN> Fragment<Token<TN>, GrammarTreeBuilde
 	}
 }
 
-struct GrammarProc<PN, TN> {
+pub struct GrammarProc<PN, TN> {
 	name: PN,
 	fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>
 }
@@ -123,7 +123,7 @@ impl<PN, TN> GrammarProc<PN, TN> {
 	}
 }
 
-struct Grammar<PN, TN> {
+pub struct Grammar<PN, TN> {
 	procs: Vec<GrammarProc<PN, TN>>
 }
 
