@@ -93,24 +93,46 @@ impl<I, A, C> ChoiceFragment<I, A, C> {
 	}
 }
 
-impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for ChoiceFragment<I, A, C> {
+impl<I: Debug, A: Debug + Clone, C: Debug> Fragment<I, A, C> for ChoiceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
 		acc: &mut A,
 		context: &C
 	) -> Result<(), String> {
-		let mut first_err: Option<String> = None;
+		let mut errors: Vec<String> = vec![];
+		let mut view_clone: Option<SequenceView<I>> = None;
+		let mut acc_clone: Option<A> = None;
+		let mut success = false;
+
+		if self.choices.len() == 0 {
+			return Ok(())
+		};
+		
 		for choice in &self.choices {
-			if let Err(message) = choice.compare(view, acc, context) {
-				if first_err.is_none() {
-					first_err = Some(message);
-				}
+			view_clone = Some(view.clone());
+			acc_clone = Some(acc.clone());
+			if let Err(message) = choice.compare(view_clone.as_mut().unwrap(), acc_clone.as_mut().unwrap(), context) {
+				errors.push(message);
 			} else {
-				return Ok(())
+				success = true;
+				break;
 			}
 		}
-		return Err(first_err.unwrap_or(String::from("Unexpected parsing error")))
+		if view_clone.is_some() { *view = view_clone.unwrap() }
+		if acc_clone.is_some() { *acc = acc_clone.unwrap() }
+
+		if success {
+			return Ok(());
+		}
+		Err(
+			String::from("Invalid syntax; all interpretations failed:")
+			+ errors.iter().fold(String::new(), |mut acc, msg| {
+				acc += "\n\t- ";
+				acc += msg.replace("\n", "\n\t  ").as_str();
+				acc
+			}).as_str()
+		)
 	}
 }
 
@@ -125,22 +147,16 @@ impl<I, A, C> SequenceFragment<I, A, C> {
 	}
 }
 
-impl<I: Debug, A: Debug + Clone, C: Debug> Fragment<I, A, C> for SequenceFragment<I, A, C> {
+impl<I: Debug, A: Debug, C: Debug> Fragment<I, A, C> for SequenceFragment<I, A, C> {
 	fn compare(
 		&self,
 		view: &mut SequenceView<I>,
 		acc: &mut A,
 		context: &C
 	) -> Result<(), String> {
-		let mut seq_view_clone = view.clone();
-		let mut acc_clone = acc.clone();
-
 		for item in &self.items {
-			item.compare(&mut seq_view_clone, &mut acc_clone, context)?;
+			item.compare(view, acc, context)?;
 		}
-
-		*view = seq_view_clone;
-		*acc = acc_clone;
 		Ok(())
 	}
 }
@@ -256,7 +272,10 @@ mod tests {
 		assert_eq!(str, String::from("b"));
 
 		let mut str = String::new();
-        assert_eq!(fragment.compare(&mut seq_view("c", &mut strbuf), &mut str, &()), Err(String::from("Expected 'a'; got 'c'.")));
+        assert_eq!(
+			fragment.compare(&mut seq_view("c", &mut strbuf), &mut str, &()),
+			Err(String::from("Invalid syntax; all interpretations failed:\n\t- Expected 'a'; got 'c'.\n\t- Expected 'b'; got 'c'."))
+		);
     }
 
     #[test]

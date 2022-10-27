@@ -77,7 +77,7 @@ enum ExprParseState {
     Choice
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 enum ChoiceParseState {
     Default,
     Range
@@ -244,7 +244,7 @@ impl TokenMatcher {
                         if *char != ']' { buffer.push('\\'); }
                     } else {
                         if *char == ']' {
-                            current_item = Some(Box::new(Self::parse_choice(&buffer)));
+                            current_item = Some(Self::parse_choice(&buffer));
                             buffer.clear();
                             mode = ExprParseState::Default;
                             continue;
@@ -276,7 +276,7 @@ impl TokenMatcher {
         Ok(SequenceFragment::new(items))
     }
 
-    fn parse_choice(expr: &[char]) -> ChoiceFragment<char, String, ()> {
+    fn parse_choice(expr: &[char]) -> Box<dyn Fragment<char, String, ()>> {
         let mut choices: Vec<Box<dyn Fragment<char, String, ()>>> = vec![];
         let mut state = ChoiceParseState::Default;
         let mut last: Option<char> = None;
@@ -293,7 +293,7 @@ impl TokenMatcher {
                     if !escape {
                         match char {
                             '-' => {
-                                choices.clear();
+                                choices.pop();
                                 state = ChoiceParseState::Range;
                                 continue;
                             }
@@ -327,7 +327,11 @@ impl TokenMatcher {
             panic!("Missing end of range");
         }
 
-        ChoiceFragment::new(choices)
+        if choices.len() == 1 {
+            return choices.into_iter().next().unwrap();
+        }
+
+        Box::new(ChoiceFragment::new(choices))
     }
 }
 
@@ -437,7 +441,11 @@ mod tests {
 
         assert_eq!(matcher.compare("ab534"), Ok(String::from("ab")), "'a[bc]' should match the first 2 chars in 'ab534'");
         assert_eq!(matcher.compare("ac534"), Ok(String::from("ac")), "'a[bc]' should match the first 2 chars in 'ac534'");
-        assert_eq!(matcher.compare("a534"), Err(String::from("(expr:1) Expected 'b', but got '5'")), "'a[bc]' should not match 'a534'");
+        assert_eq!(
+            matcher.compare("a534"),
+            Err(String::from("(expr:1) Invalid syntax; all interpretations failed:\n\t- Expected 'b', but got '5'\n\t- Expected 'c', but got '5'")),
+            "'a[bc]' should not match 'a534'"
+        );
     }
 
     #[test]
@@ -462,7 +470,11 @@ mod tests {
         assert_eq!(matcher.compare("a"), Ok(String::from("a")), "'[a\\-\\]]' should match 'a'");
         assert_eq!(matcher.compare("]"), Ok(String::from("]")), "'[a\\-\\]]' should match ']'");
         assert_eq!(matcher.compare("-"), Ok(String::from("-")), "'[a\\-\\]]' should match '-'");
-        assert_eq!(matcher.compare("bet46r"), Err(String::from("(expr:0) Expected 'a', but got 'b'")), "'[a\\-\\]]' should not match 'bet46r'");
+        assert_eq!
+            (matcher.compare("bet46r"),
+            Err(String::from("(expr:0) Invalid syntax; all interpretations failed:\n\t- Expected 'a', but got 'b'\n\t- Expected '-', but got 'b'\n\t- Expected ']', but got 'b'")),
+            "'[a\\-\\]]' should not match 'bet46r'"
+        );
     }
 
     #[test]
@@ -474,5 +486,18 @@ mod tests {
         assert_eq!(matcher.compare("b"), Ok(String::from("b")), "'[a-z]' should match 'b'");
         assert_eq!(matcher.compare("A"), Err(String::from("(expr:0) Expected char in range 'a'-'z', but got 'A'")), "'[a-z]' should not match 'A'");
         assert_eq!(matcher.compare("-"), Err(String::from("(expr:0) Expected char in range 'a'-'z', but got '-'")), "'[a-z]' should not match '-'");
+    }
+
+    #[test]
+    fn multiple_ranges_work() {
+        let matcher = TokenMatcher::expr("[1-24-5]").unwrap();
+
+        assert_eq!(matcher.compare("1"), Ok(String::from("1")), "'[1-24-5]' should match '1'");
+        assert_eq!(matcher.compare("4"), Ok(String::from("4")), "'[1-24-5]' should match '4'");
+        assert_eq!(
+            matcher.compare("3"),
+            Err(String::from("(expr:0) Invalid syntax; all interpretations failed:\n\t- Expected char in range '1'-'2', but got '3'\n\t- Expected char in range '4'-'5', but got '3'")),
+            "'[1-24-5]' should not match '3'"
+        );
     }
 }
