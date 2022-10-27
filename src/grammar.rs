@@ -164,18 +164,9 @@ impl<PN: Eq + Copy, TN> Grammar<PN, TN> {
 
 #[macro_export]
 macro_rules! grammar {
-	($($proc_name:expr => $part:expr)*) => {
-		$crate::grammar::Grammar::new(vec![
-			$($crate::grammar::GrammarProc::new($proc_name, Box::new($part))),*
-		])
-	};
 	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
 		$crate::grammar::Grammar::new(vec![
-			$($crate::grammar::GrammarProc::new($proc_name, Box::new(
-				$crate::fragments::SequenceFragment::new(vec![
-					$(Box::new($part)),+
-				])
-			))),*
+			$($crate::grammar::GrammarProc::new($proc_name, Box::new($crate::sequence!($($part),+)))),*
 		])
 	};
 }

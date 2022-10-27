@@ -8,6 +8,8 @@ use trees::Tree;
 
 mod fragments;
 
+pub mod fragment_macros;
+
 mod token_match;
 
 pub mod tokenize;
