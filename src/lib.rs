@@ -6,11 +6,11 @@ use grammar::{Grammar, GrammarTreeNode};
 use tokenize::Alphabet;
 use trees::Tree;
 
-mod fragments;
+mod token_match;
+
+pub mod fragments;
 
 pub mod fragment_macros;
-
-mod token_match;
 
 pub mod tokenize;
 
