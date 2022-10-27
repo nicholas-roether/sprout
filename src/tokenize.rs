@@ -113,7 +113,7 @@ impl<N: Copy> Alphabet<N> {
 macro_rules! alphabet {
     ($($match_expr:literal=>$name:expr),*) => {
         {
-            let mut alphabet = crate::tokenize::Alphabet::new();
+            let mut alphabet = $crate::tokenize::Alphabet::new();
             $({
                 let res = alphabet.register_token($name, $match_expr);
                 if let Err(err) = res {
