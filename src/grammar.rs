@@ -157,6 +157,9 @@ impl<PN: Eq + Copy, TN: Copy> Grammar<PN, TN> {
 		let mut seq_view = SequenceView::new(&tokens);
 		let mut tree_builder: GrammarTreeBuilder<PN, TN> = GrammarTreeBuilder::new();
 		self.compare_proc(proc, &mut seq_view, &mut tree_builder)?;
+		if seq_view.index() != tokens.len() {
+			return Err(format!("Invalid syntax: {}", seq_view.items().iter().map(|t| t.str.clone()).collect::<Vec<String>>().join("")))
+		}
 		tree_builder.result
 	}
 
