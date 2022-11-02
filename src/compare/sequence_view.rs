@@ -19,3 +19,31 @@ impl<'a, T> Clone for SequenceView<'a, T> {
 		SequenceView { index: self.index, items: self.items }
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn should_construct_correctly() {
+		let items = &[1, 2, 3];
+		let seq_view = SequenceView::new(items);
+
+		assert_eq!(seq_view.index, 0);
+	}
+
+	fn items_function_should_return_correclty() {
+		let items = &[1, 2, 3];
+		let seq_view = SequenceView::new(items);
+
+		assert_eq!(seq_view.items(), &[1, 2, 3]);
+	}
+
+	fn items_function_should_account_for_index() {
+		let items = &[1, 2, 3];
+		let mut seq_view = SequenceView::new(items);
+		seq_view.index = 2;
+
+		assert_eq!(seq_view.items(), &[3]);
+	}
+}

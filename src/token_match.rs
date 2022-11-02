@@ -169,6 +169,7 @@ impl TokenMatcher {
                             has_expression = false;
                             builder.pop_return();
                             builder.push_return();
+                            builder.push_return();
                             mode = ExprParseState::Choice;
                         },
                         (']', false) => {

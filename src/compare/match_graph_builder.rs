@@ -63,6 +63,7 @@ impl<M: Matcher> MatchGraphBuilder<M> {
 	}
 
 	pub fn pop_choice(&mut self) {
+		self.pop_return();
 		let rejoin_node = self.add_buffer_node();
 		for end in self.end_buffer.clone() {
 			self.connect(end, rejoin_node);
@@ -135,5 +136,141 @@ impl<M: Matcher + Clone> MatchGraphBuilder<M> {
 		self.current_node = end;
 
 		self.duplicate(times - 1);
+	}
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::compare::{Matcher, SequenceView, MatchError};
+
+    use super::*;
+
+	impl Matcher for u32 {
+	    type Item = u32;
+	    type Accumulator = Vec<u32>;
+
+	    fn compare(&self, sequence: &mut SequenceView<u32>, accumulator: &mut Vec<u32>) -> Result<(), MatchError> {
+	        if sequence.items().is_empty() || sequence.items().first().unwrap() != self {
+				return Err(MatchError::simple(self.to_string(), sequence.index));
+			}
+			sequence.index += 1;
+			accumulator.push(*self);
+			Ok(())
+	    }
+	}
+
+	#[test]
+	fn append_works() {
+		let mut builder = MatchGraphBuilder::<u32>::new();
+		builder.append(6, None);
+		builder.append(9, None);
+		let graph = builder.complete();
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[6, 9, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![6, 9]);
+		
+		assert!(graph.compare(&[6], &mut vec![]).is_err());
+		assert!(graph.compare(&[1, 2, 3], &mut vec![]).is_err());
+	}
+
+	#[test]
+	fn push_get_and_pop_return_works() {
+		let mut builder = MatchGraphBuilder::<u32>::new();
+		builder.append(420, None);
+		builder.push_return();
+		builder.append(6, None);
+		builder.append(6, None);
+		builder.push_return();
+
+		assert_eq!(builder.get_return(), NodeIndex::new(3));
+		assert_eq!(builder.pop_return(), NodeIndex::new(3));
+		assert_eq!(builder.get_return(), NodeIndex::new(1));
+		assert_eq!(builder.pop_return(), NodeIndex::new(1));
+	}
+
+	#[test]
+	fn choice_construction_works() {
+		let mut builder = MatchGraphBuilder::<u32>::new();
+		builder.push_return();
+		builder.append(420, None);
+		builder.end_choice_path();
+		builder.append(69, None);
+		builder.end_choice_path();
+		builder.pop_choice();
+		let graph = builder.complete();
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![420]);
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[69, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![69]);
+
+		assert!(graph.compare(&[1, 2, 3], &mut vec![]).is_err());
+	}
+
+	#[test]
+	fn repeat_construction_works() {
+		let mut builder = MatchGraphBuilder::<u32>::new();
+		builder.push_return();
+		builder.append(420, None);
+		builder.pop_repeat();
+		let graph = builder.complete();
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![420]);
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 420, 420, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![420, 420, 420]);
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[1, 2, 3], &mut acc).is_ok());
+		assert_eq!(acc, vec![]);
+	}
+
+	#[test]
+	fn optional_construction_works() {
+		let mut builder = MatchGraphBuilder::<u32>::new();
+		builder.push_return();
+		builder.append(420, None);
+		builder.pop_optional();
+		let graph = builder.complete();
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![420]);
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 420, 420, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![420]);
+
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[1, 2, 3], &mut acc).is_ok());
+		assert_eq!(acc, vec![]);
+	}
+
+	#[test]
+	fn duplicate_works() {
+		let mut builder = MatchGraphBuilder::<u32>::new();
+		builder.push_return();
+		builder.append(420, None);
+		builder.duplicate(2);
+		builder.pop_return();
+		let graph = builder.complete();
+
+		assert!(graph.compare(&[420, 420, 0], &mut vec![]).is_err());
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 420, 420, 0], &mut acc).is_ok());
+		assert_eq!(acc, vec![420, 420, 420]);
+
+		let mut acc: Vec<u32> = vec![];
+		assert!(graph.compare(&[420, 420, 420, 420], &mut acc).is_ok());
+		assert_eq!(acc, vec![420, 420, 420]);		
 	}
 }

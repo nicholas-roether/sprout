@@ -40,7 +40,7 @@ pub trait Matcher {
 	fn compare(&self, sequence: &mut SequenceView<Self::Item>, accumulator: &mut Self::Accumulator) -> Result<(), MatchError>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct MatchNodeData<M: Matcher> {
 	matcher: Option<M>,
 	name: Option<String>
@@ -128,5 +128,175 @@ impl<M: Matcher> MatchGraph<M> {
 		}
 		
 		Err(MatchError::new(deepest_expectations, deepest_error_depth, sequence.index))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	impl Matcher for char {
+		type Item = char;
+		type Accumulator = String;
+
+		fn compare(&self, sequence: &mut SequenceView<Self::Item>, accumulator: &mut Self::Accumulator) -> Result<(), MatchError> {
+			if sequence.items().is_empty() || sequence.items().first().unwrap() != self {
+				return Err(MatchError::simple(self.to_string(), sequence.index))
+			}
+			sequence.index += 1;
+			accumulator.push(*self);
+			Ok(())
+		}
+	}
+
+	#[test]
+	fn match_error_should_construct_correctly() {
+		let err = MatchError::new(vec!["abc".to_string()], 69, 420);
+		assert_eq!(err.expectations, vec!["abc".to_string()]);
+		assert_eq!(err.depth, 69);
+		assert_eq!(err.index, 420);
+
+		let err = MatchError::simple("xyz".to_string(), 123);
+		assert_eq!(err.expectations, vec!["xyz".to_string()]);
+		assert_eq!(err.depth, 0);
+		assert_eq!(err.index, 123);
+	}
+
+	#[test]
+	fn match_error_with_single_expectation_should_display_correctly() {
+		let err = MatchError::simple("something cool".to_string(), 12);
+		assert_eq!(format!("{err}"), "Expected something cool");
+	}
+
+	#[test]
+	fn match_error_with_multiple_expectations_should_display_correctly() {
+		let err = MatchError::new(vec!["123".to_string(), "456".to_string(), "789".to_string()], 0, 0);
+		assert_eq!(format!("{err}"), "Expected one of: 123, 456, 789");
+	}
+
+	#[test]
+	fn match_graph_with_single_matcher_node_should_work() {
+		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
+		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let graph = MatchGraph::new(di_graph, node);
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "x".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'b', 'c'], &mut acc), Err(MatchError::new(vec!["x".to_string()], 0, 0)));
+	}
+
+	#[test]
+	fn match_graph_should_ignore_empty_matcher_nodes() {
+		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(MatchNodeData::empty());
+		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		di_graph.add_edge(root, node, 2);
+		let graph = MatchGraph::new(di_graph, root);
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "x".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'b', 'c'], &mut acc), Err(MatchError::new(vec!["x".to_string()], 1, 0)));
+	}
+
+	#[test]
+	fn match_graph_should_handle_named_matcher_nodes() {
+		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(MatchNodeData::empty());
+		let named_node = di_graph.add_node(MatchNodeData::new(None, Some("Something".to_string())));
+		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		di_graph.add_edge(root, named_node, 0);
+		di_graph.add_edge(named_node, node, 0);
+		let graph = MatchGraph::new(di_graph, root);
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "x".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'b', 'c'], &mut acc), Err(MatchError::new(vec!["Something".to_string()], 1, 0)));
+	}
+
+	#[test]
+	fn match_graph_should_handle_splits() {
+		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(MatchNodeData::empty());
+		let opt1_node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let opt2_node = di_graph.add_node(MatchNodeData::new(Some('y'), None));
+		di_graph.add_edge(root, opt1_node, 0);
+		di_graph.add_edge(root, opt2_node, 1);
+		let graph = MatchGraph::new(di_graph, root);
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "x".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['y', 'a', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "y".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['z', 'b', 'c'], &mut acc), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 1, 0)));
+	}
+
+	#[test]
+	fn match_graph_should_handle_splits_with_partial_match() {
+		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(MatchNodeData::empty());
+		let opt1_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
+		let opt1_node2 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let opt2_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
+		let opt2_node2 = di_graph.add_node(MatchNodeData::new(Some('y'), None));
+		di_graph.add_edge(root, opt1_node1, 0);
+		di_graph.add_edge(opt1_node1, opt1_node2, 0);
+		di_graph.add_edge(root, opt2_node1, 1);
+		di_graph.add_edge(opt2_node1, opt2_node2, 0);
+		let graph = MatchGraph::new(di_graph, root);
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'x', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "ax".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'y', 'b'], &mut acc), Ok(()));
+		assert_eq!(acc, "ay".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'z', 'c'], &mut acc), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 2, 0)));
+	}
+
+	#[test]
+	fn match_graph_should_handle_splits_with_partial_matches_of_different_depths() {
+		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(MatchNodeData::empty());
+		let opt1_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
+		let opt1_node2 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let opt1_node3 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let opt2_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
+		let opt2_node2 = di_graph.add_node(MatchNodeData::new(Some('y'), None));
+		let opt2_node3 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		di_graph.add_edge(root, opt1_node1, 0);
+		di_graph.add_edge(opt1_node1, opt1_node2, 0);
+		di_graph.add_edge(opt1_node2, opt1_node3, 0);
+		di_graph.add_edge(root, opt2_node1, 1);
+		di_graph.add_edge(opt2_node1, opt2_node2, 0);
+		di_graph.add_edge(opt2_node2, opt2_node3, 0);
+		let graph = MatchGraph::new(di_graph, root);
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'x', 'x'], &mut acc), Ok(()));
+		assert_eq!(acc, "axx".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'y', 'x'], &mut acc), Ok(()));
+		assert_eq!(acc, "ayx".to_string());
+
+		let mut acc = String::new();
+		assert_eq!(graph.compare(&['a', 'x', 'c'], &mut acc), Err(MatchError::new(vec!["x".to_string()], 3, 0)));
 	}
 }
