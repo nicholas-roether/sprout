@@ -49,7 +49,7 @@ impl fmt::Display for MatchError {
 		if self.expectations.len() == 1 {
 			return write!(f, "Expected {}", self.expectations.first().unwrap());
 		}
-		write!(f, "Expected one of: {}", self.expectations.join(","))
+		write!(f, "Expected one of: {}", self.expectations.join(", "))
 	}
 }
 
@@ -172,6 +172,14 @@ fn clone_graph_segment<N: Clone, E: Clone>(graph: &mut DiGraph<N, E>, start: Nod
 	(clone, end)
 }
 
+fn move_all_connections<N, E: Clone>(graph: &mut DiGraph<N, E>, from: NodeIndex, to: NodeIndex) {
+	let mut neigbors = graph.neighbors(from).detach();
+	while let Some((edge_index, node_index)) = neigbors.next(graph) {
+		graph.add_edge(to, node_index, graph[edge_index].clone());
+		graph.remove_edge(edge_index);
+	}
+}
+
 pub struct MatchGraphBuilder<M: Matcher> {
 	graph: DiGraph<MatchNodeData<M>, u32>,
 	root: NodeIndex,
@@ -203,7 +211,7 @@ impl<M: Matcher> MatchGraphBuilder<M> {
 	}
 
 	pub fn pop_choice(&mut self) {
-		let rejoin_node = self.graph.add_node(MatchNodeData::empty());
+		let rejoin_node = self.add_buffer_node();
 		for end in self.end_buffer.clone() {
 			self.connect(end, rejoin_node);
 		}
@@ -213,13 +221,22 @@ impl<M: Matcher> MatchGraphBuilder<M> {
 
 	pub fn pop_repeat(&mut self) {
 		let ret = self.pop_return();
-		self.connect(self.current_node, ret)
+		let loop_start = self.add_buffer_node();
+		let next = self.add_buffer_node();
+		move_all_connections(&mut self.graph, ret, loop_start);
+		self.connect(ret, loop_start);
+		self.connect(self.current_node, loop_start);
+		self.connect(loop_start, next);
+		self.current_node = next;
 	}
 
 
 	pub fn pop_optional(&mut self) {
 		let ret = self.pop_return();
-		self.connect(ret, self.current_node);
+		let next = self.add_buffer_node();
+		self.connect(ret, next);
+		self.connect(self.current_node, next);
+		self.current_node = next;
 	}
 
 	pub fn get_return(&self) -> NodeIndex {
@@ -230,9 +247,10 @@ impl<M: Matcher> MatchGraphBuilder<M> {
 		self.return_stack.pop().unwrap_or(self.root)
 	}
 
-	pub fn complete(mut self) -> MatchGraph<M> {
-		let end_node = self.graph.add_node(MatchNodeData::empty());
-		self.connect(self.current_node, end_node);
+	pub fn complete(self) -> MatchGraph<M> {
+		if !self.return_stack.is_empty() {
+			panic!("Match graph return stack was not empty!");
+		}
 		MatchGraph::new(self.graph, self.root)
 	}
 
@@ -243,6 +261,10 @@ impl<M: Matcher> MatchGraphBuilder<M> {
 			self.graph.edges(start).count() as u32
 		);
 	}
+
+	fn add_buffer_node(&mut self) -> NodeIndex {
+		self.graph.add_node(MatchNodeData::empty())
+	}
 }
 
 impl<M: Matcher + Clone> MatchGraphBuilder<M> {
@@ -251,9 +273,13 @@ impl<M: Matcher + Clone> MatchGraphBuilder<M> {
 			return;
 		}
 
-		let ret = self.get_return();
-		let (clone, end) = clone_graph_segment(&mut self.graph, ret);
-		self.connect(self.current_node, clone);
+		let ret = self.pop_return();
+		let (clone, _end) = clone_graph_segment(&mut self.graph, ret);
+		move_all_connections(&mut self.graph, clone, self.current_node);
+		self.graph.remove_node(clone);
+		// end is the last node, and so moves to the empty space
+		let end = clone;
+		self.push_return();
 		self.current_node = end;
 
 		self.duplicate(times - 1);
