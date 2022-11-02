@@ -302,7 +302,6 @@ impl TokenMatcher {
         }
 
         builder.pop_return();
-
         Ok(builder.complete())
     }
 
