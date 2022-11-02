@@ -1,22 +1,17 @@
 #![allow(dead_code)]
 
-use std::fmt;
-
-use grammar::{Grammar, GrammarTreeNode};
-use tokenize::Alphabet;
-use trees::Tree;
-
 pub mod compare;
+pub mod fragments;
+pub mod fragment_macros;
+pub mod tokenize;
+pub mod grammar;
 
 mod token_match;
 
-pub mod fragments;
-
-pub mod fragment_macros;
-
-pub mod tokenize;
-
-pub mod grammar;
+use std::fmt;
+use grammar::{Grammar, GrammarTreeNode};
+use tokenize::Alphabet;
+use trees::Tree;
 
 #[derive(Debug)]
 pub struct Parser<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> {
