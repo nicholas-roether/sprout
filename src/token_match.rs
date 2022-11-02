@@ -2,77 +2,6 @@ use std::fmt;
 
 use crate::compare::{Matcher, SequenceView, MatchGraph, MatchGraphBuilder, MatchError};
 
-
-// use crate::fragments::{Fragment, SequenceFragment, SequenceView, RepeatFragment, ChoiceFragment};
-
-
-// #[derive(Debug)]
-// struct CharFragment {
-//     char: char
-// }
-
-// impl CharFragment {
-//     fn new(char: char) -> Self {
-//         CharFragment { char }
-//     }
-// }
-
-// impl Fragment<char, String, ()> for CharFragment {
-//     fn compare(
-//         &self,
-//         view: &mut SequenceView<char>,
-//         acc: &mut String,
-//         _context: &()
-//     ) -> Result<(), String> {
-//         if view.items().is_empty() {
-//             return Err(format!("Unexpected end of expression; expected '{}'", self.char));
-//         }
-//         let actual_char = *view.items().first().unwrap();
-//         if actual_char != self.char {
-//             return Err(format!(
-//                 "Expected '{}', but got '{}'",
-//                 self.char,
-//                 actual_char
-//             ))
-//         }
-//         view.advance(1);
-//         acc.push(actual_char);
-//         Ok(())
-//     }
-// }
-
-// #[derive(Debug)]
-// pub struct RangeFragment {
-//     from: char,
-//     to: char
-// }
-
-// impl RangeFragment {
-//     pub fn new(from: char, to: char) -> Self {
-//         RangeFragment { from, to }
-//     }
-// }
-
-// impl Fragment<char, String, ()> for RangeFragment {
-//     fn compare(
-//         &self,
-//         view: &mut SequenceView<char>,
-//         acc: &mut String,
-//         _context: &()
-//     ) -> Result<(), String> {
-//         if view.items().is_empty() {
-//             return Err(format!("Unexpected end of expression; expected char in range '{}'-'{}'", self.from, self.to))
-//         }
-//         let actual_char = *view.items().first().unwrap();
-//         if actual_char < self.from || actual_char > self.to {
-//             return Err(format!("Expected char in range '{}'-'{}', but got '{actual_char}'", self.from, self.to))
-//         }
-//         view.advance(1);
-//         acc.push(actual_char);
-//         Ok(())
-//     }
-// }
-
 #[derive(Debug, Clone)]
 enum CharMatcher {
     Exact(char),
@@ -149,10 +78,14 @@ impl ExprParseError {
 
 impl fmt::Display for ExprParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut char_string: String = format!("'{}'", self.character);
+        if char_string == "\0" {
+            char_string = "end of expression".to_string();
+        }
         if self.message.is_some() {
-            write!(f, "Unexpected '{}' at index {}: {}", self.character, self.index, self.message.as_ref().unwrap())
+            write!(f, "Unexpected {} at index {}: {}", char_string, self.index, self.message.as_ref().unwrap())
         } else {
-            write!(f, "Unexpected '{}' at index {}", self.character, self.index)
+            write!(f, "Unexpected {} at index {}", char_string, self.index)
         }
     }
 }
@@ -185,7 +118,8 @@ impl TokenMatcher {
         let mut mode = ExprParseState::Default;
         let mut buffered_char: Option<char> = None;
         let mut escape = false;
-        let mut index = 0;
+        let mut index: usize = 0;
+        let mut paren_depth: u32 = 0;
 
         for char in expr {
             index += 1;
@@ -197,95 +131,96 @@ impl TokenMatcher {
 
             match mode {
                 ExprParseState::Default => {
-                    if !escape {
-                        match char {
-                            '*' => {
-                                if !has_expression {
-                                    return Err(ExprParseError::new(*char, index, None))
-                                }
-                                builder.pop_repeat();
-                                continue;
+                    match (char, escape) {
+                        ('*', false) => {
+                            if !has_expression {
+                                return Err(ExprParseError::new(*char, index, "'*' must follow a repeatable expression".to_string().into()))
                             }
-                            '+' => {
-                                if !has_expression {
-                                    return Err(ExprParseError::new(*char, index, None))
-                                }
-                                builder.duplicate(1);
-                                builder.pop_repeat();
-                                continue;
+                            builder.pop_repeat();
+                        }
+                        ('+', false) => {
+                            if !has_expression {
+                                return Err(ExprParseError::new(*char, index, "'+' must follow a repeatable expression".to_string().into()))
                             }
-                            '?' => {
-                                if !has_expression {
-                                    return Err(ExprParseError::new(*char, index, None))
-                                }
-                                builder.pop_optional();
-                                continue;
+                            builder.duplicate(1);
+                            builder.pop_repeat();
+                        }
+                        ('?', false) => {
+                            if !has_expression {
+                                return Err(ExprParseError::new(*char, index, "'?' must follow a repeatable expression".to_string().into()))
                             }
-                            '(' => {
+                            builder.pop_optional();
+                        }
+                        ('(', false) => {
+                            builder.pop_return();
+                            has_expression = false;
+                            builder.push_return();
+                            paren_depth += 1;
+                        }
+                        (')', false) => {
+                            if paren_depth == 0 {
+                                return Err(ExprParseError::new(*char, index, "unmatched closing parenthesis".to_string().into()));
+                            }
+                            paren_depth -= 1;
+                            has_expression = true;
+                            builder.pop_return();
+                        },
+                        ('[', false) => {
+                            has_expression = false;
+                            builder.pop_return();
+                            builder.push_return();
+                            mode = ExprParseState::Choice;
+                        },
+                        (']', false) => {
+                            return Err(ExprParseError::new(*char, index, "unmatched closing square bracket".to_string().into()));
+                        }
+                        (_, _) => {
+                            if has_expression {
                                 builder.pop_return();
-                                has_expression = false;
-                                builder.push_return();
-                                continue;
                             }
-                            ')' => {
-                                has_expression = true;
-                                builder.pop_return();
-                                continue;
-                            },
-                            '[' => {
-                                builder.pop_return();
-                                has_expression = false;
-                                builder.push_return();
-                                builder.push_return();
-                                mode = ExprParseState::Choice;
-                                continue;
-                            },
-                            ']' => {
-                                panic!("Unexpected character ']' in expression")
-                            }
-                            _ => ()
+                            builder.push_return();
+                            builder.append(CharMatcher::Exact(*char), None);
+                            has_expression = true;
                         }
                     }
-                    if has_expression {
-                        builder.pop_return();
-                    }
-                    builder.append(CharMatcher::Exact(*char), None);
-                    builder.push_return();
+                    
                 }
                 ExprParseState::Choice => {
-                    if !escape {
-                        match char {
-                            '-' => {
-                                mode = ExprParseState::Range;
-                                continue;
-                            }
-                            ']' => {
-                                if let Some(b_char) = buffered_char {
-                                    builder.append(CharMatcher::Exact(b_char), None);
-                                }
-                                builder.pop_choice();
-                                has_expression = true;
-                                mode = ExprParseState::Default;
-                            }
-                            _ => ()
+                    match (char, escape) {
+                        ('-', false) => {
+                            mode = ExprParseState::Range;
                         }
-                        
+                        (']', false) => {
+                            if let Some(b_char) = buffered_char {
+                                builder.append(CharMatcher::Exact(b_char), None);
+                                builder.end_choice_path();
+                            }
+                            
+                            builder.pop_choice();
+                            has_expression = true;
+                            mode = ExprParseState::Default;
+                        }
+                        (_, _) => {
+                            if let Some(b_char) = buffered_char {
+                                builder.append(CharMatcher::Exact(b_char), None);
+                                builder.end_choice_path();
+                            }
+                            buffered_char = Some(*char);
+                        }
                     }
-                    if let Some(b_char) = buffered_char {
-                        builder.append(CharMatcher::Exact(b_char), None);
-                    }
-                    buffered_char = Some(*char);
                 },
                 ExprParseState::Range => {
-                    if !escape {
-                        match char {
-                            ']' => {
-                                return Err(ExprParseError::new(*char, index, Some(String::from("Unexpected end of choice after '-'"))));
-                            }
-                            _ => ()
+                    match (char, escape) {
+                        (']', false) => {
+                            return Err(ExprParseError::new(*char, index, "Unexpected end of choice after '-'".to_string().into()));
+                        }
+                        (_, _) => {
+                            builder.append(CharMatcher::Range(buffered_char.expect("No start of range found"), *char), None);
+                            buffered_char = None;
+                            builder.end_choice_path();
+                            mode = ExprParseState::Choice;
                         }
                     }
-                    builder.append(CharMatcher::Range(buffered_char.expect("No start of range found"), *char), None)
                 }
             }
 
@@ -295,73 +230,18 @@ impl TokenMatcher {
         }
 
         if escape {
-            panic!("Incomplete escape sequence");
+            return Err(ExprParseError::new('\0', index, "incomplete escape sequence".to_string().into()));
         }
         if mode == ExprParseState::Choice || mode == ExprParseState::Range {
-            panic!("Unmatched opening square bracket");
+            return Err(ExprParseError::new('\0', index, "Unmatched opening square bracket".to_string().into()));
+        }
+        if paren_depth != 0 {
+            return Err(ExprParseError::new('\0', index, "Unmatched opening parenthesis".to_string().into()));
         }
 
         builder.pop_return();
         Ok(builder.complete())
     }
-
-    // fn parse_choice(expr: &[char]) -> Box<dyn Fragment<char, String, ()>> {
-    //     let mut choices: Vec<Box<dyn Fragment<char, String, ()>>> = vec![];
-    //     let mut state = ChoiceParseState::Default;
-    //     let mut last: Option<char> = None;
-    //     let mut escape = false;
-
-    //     for char in expr {
-    //         if !escape && *char == '\\' {
-    //             escape = true;
-    //             continue;
-    //         }
-
-    //         match state {
-    //             ChoiceParseState::Default => {
-    //                 if !escape {
-    //                     match char {
-    //                         '-' => {
-    //                             choices.pop();
-    //                             state = ChoiceParseState::Range;
-    //                             continue;
-    //                         }
-    //                         _ => ()
-    //                     }
-    //                 }
-    //                 last = Some(*char);
-    //                 choices.push(Box::new(CharFragment::new(*char)))
-    //             }
-    //             ChoiceParseState::Range => {
-    //                 choices.push(Box::new(
-    //                     RangeFragment::new(
-    //                         last.expect("Missing start of range"),
-    //                         *char
-    //                     )
-    //                 ));
-    //                 last = None;
-    //                 state = ChoiceParseState::Default;
-    //             }
-    //         }
-
-    //         if escape {
-    //             escape = false;
-    //         }
-    //     }
-
-    //     if escape {
-    //         panic!("Incomplete escape sequence");
-    //     }
-    //     if state == ChoiceParseState::Range {
-    //         panic!("Missing end of range");
-    //     }
-
-    //     if choices.len() == 1 {
-    //         return choices.into_iter().next().unwrap();
-    //     }
-
-    //     Box::new(ChoiceFragment::new(choices))
-    // }
 }
 
 #[cfg(test)]
@@ -451,7 +331,7 @@ mod tests {
         let matcher = TokenMatcher::expr("a(bc)+").unwrap();
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Ok(String::from("abcbcbcbc")), "'a(bc)+' should match first 9 chars in 'abcbcbcbcefdfs'");
-        assert_eq!(matcher.compare("bcbcbcbcefdfs"), Err(String::from("(expr:0) Expected 'a', but got 'b'")), "'a(bc)+' not match 'bcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("bcbcbcbcefdfs"), Err(String::from("(expr:0) Expected 'a'")), "'a(bc)+' not match 'bcbcbcbcefdfs'");
         assert_eq!(matcher.compare("aefdfs"), Err(String::from("(expr:1) Expected 'b'")), "'a(bc)+' should not match 'aefdfs'");
     }
 
@@ -501,7 +381,7 @@ mod tests {
         assert_eq!(matcher.compare("-"), Ok(String::from("-")), "'[a\\-\\]]' should match '-'");
         assert_eq!
             (matcher.compare("bet46r"),
-            Err(String::from("(expr:0) Expected one of: 'a', '[', '-'")),
+            Err(String::from("(expr:0) Expected one of: 'a', '-', ']'")),
             "'[a\\-\\]]' should not match 'bet46r'"
         );
     }
