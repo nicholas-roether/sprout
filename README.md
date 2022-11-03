@@ -47,7 +47,7 @@ let alphabet = alphabet! {
    Token::Number => "[0-9]+";
    Token::Word => "[a-z]+";
    Token::Space => " "
-}
+};
 ```
 
 Next, you define your grammar, in terms of "procedures", or "procs". They are the abstract parts of your language
@@ -101,9 +101,14 @@ let grammar = grammar! {
          choice!(
             proc!(Proc::TwoOrThreeWords);
             proc!(Proc::WordOrNumber)
-         )
+         ),
+         token!(Token::Space)
+      ),
+      choice!(
+         proc!(Proc::TwoOrThreeWords);
+         proc!(Proc::WordOrNumber)
       );
-} 
+};
 ```
 
 As you can see, using `proc`, procedures can reference other procedures in the grammar, or even themselves.
@@ -121,7 +126,7 @@ This parser will now simply spit out an AST (or a ParsingError) for any string y
 For example this input
 
 ```rust
-let tree = parser.parse("abc ab 123 xyz 69");
+let tree = parser.parse(Proc::Sequence, "abc ab 123 xyz 69".to_string());
 ```
 
 would produce an AST like this:

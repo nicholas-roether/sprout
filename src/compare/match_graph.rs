@@ -137,9 +137,11 @@ impl<M: Matcher> MatchGraph<M> {
 
 		let mut deepest_expectations: Vec<String> = vec![];
 		let mut deepest_error_depth = 0;
+		let mut deepest_error_index = 0;
 		for mut error in errors {
 			if error.depth > deepest_error_depth {
 				deepest_error_depth = error.depth;
+				deepest_error_index = error.index;
 				deepest_expectations.clear();
 				deepest_expectations.append(&mut error.expectations);
 			} else if error.depth == deepest_error_depth {
@@ -147,7 +149,7 @@ impl<M: Matcher> MatchGraph<M> {
 			}
 		}
 		
-		Err(MatchError::new(deepest_expectations, deepest_error_depth, sequence.index))
+		Err(MatchError::new(deepest_expectations, deepest_error_depth, deepest_error_index))
 	}
 }
 

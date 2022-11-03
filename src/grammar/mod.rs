@@ -155,7 +155,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			  if sequence.items().is_empty() {
 				  return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
 			  }
-			  context.data.compare_proc(*proc_name, sequence, accumulator)?;
+			  context.data.compare_proc(*proc_name, sequence, accumulator, false)?;
 			  Ok(())
 		  }
 	  }
@@ -180,14 +180,14 @@ pub struct Grammar<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: Partial
 }
 
 impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
-  pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
+	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
 	  Grammar { procs }
-  }
+	}
 
-  pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<ASTNode<PN>>, ParsingError> {
+	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<ASTNode<PN>>, ParsingError> {
 	  let mut tree_builder: ASTBuilder<PN> = ASTBuilder::new();
 	  let mut seq_view = SequenceView::new(tokens);
-	  match self.compare_proc(proc, &mut seq_view, &mut tree_builder) {
+	  match self.compare_proc(proc, &mut seq_view, &mut tree_builder, true) {
 		  Ok(_) => Ok(tree_builder.result.expect("Unexpected error occurred during compilation")),
 		  Err(error) => {
 			  let position = if error.index == tokens.len() {
@@ -202,18 +202,19 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		  }
 	  }
 	  
-  }
+	}
 
-  fn compare_proc(
+	fn compare_proc(
 	  &self,
 	  proc: PN,
 	  tokens: &mut SequenceView<Token<TN>>,
 	  acc: &mut ASTBuilder<PN>,
-  ) -> Result<(), MatchError> {
+	  exhaustive: bool,
+	) -> Result<(), MatchError> {
 	  let mut error: Option<MatchError> = None;
 	  acc.push_proc(proc);
 	  for proc in self.procs.iter().filter(|p| p.name == proc) {
-		  if let Err(new_err) = proc.graph.compare(tokens, acc, &MatcherContext::new(&self, true)) {
+		  if let Err(new_err) = proc.graph.compare(tokens, acc, &MatcherContext::new(&self, exhaustive)) {
 			  if error.is_none() || new_err.depth > error.as_ref().unwrap().depth {
 				  error = Some(new_err);
 			  }
@@ -224,7 +225,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	  }
 	  
 	  Err(error.expect("Unexpected error occurred during parsing"))
-  }
+	}
 }
 
 #[cfg(test)]
@@ -284,24 +285,26 @@ mod tests {
 		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(6, 9))));
 	}
 
+	#[test]
 	fn correctly_parses_mixed_sequence() {
 		let grammar = grammar!(
-			'a' => token!('x'), proc!('b');
+			'a' => token!('x'), proc!('b'), token!('z');
 			'b' => token!('y');
 		);
 
 		let result = grammar.parse('a', &[
 			Token::new('x', String::from("123"), TextPosition::new(6, 9)),
 			Token::new('y', String::from("456"), TextPosition::new(4, 20)),
+			Token::new('z', String::from("789"), TextPosition::new(1, 2)),
 		]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(6, 9)))
+			tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(6, 9)))
 				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20)))
 		));
 
 		let result2 = grammar.parse('a', &[
 			Token::new('x', String::from("123"), TextPosition::new(6, 9)),
-			Token::new('z', String::from("breaks here"), TextPosition::new(4, 20)),
+			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20)),
 		]);
 		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20))));
 	}
