@@ -2,9 +2,10 @@ use std::fmt;
 
 use trees::{Tree, tr};
 
-use crate::{tokenize::Token, fragments::{Fragment, SequenceView}};
+use crate::{tokenize::{Token, TokenPosition}, fragments::{Fragment}, compare::{Matcher, SequenceView, MatchGraph, MatchError, MatcherContext}, ParsingError};
 
-enum GrammarItemName<PN, TN> {
+#[derive(Debug)]
+pub enum GrammarItemName<PN, TN> {
 	Terminal(TN),
 	NonTerminal(PN)
 }
@@ -74,107 +75,151 @@ impl<PN: Clone, TN: Clone> GrammarTreeBuilder<PN, TN> {
 	}
 }
 
-#[derive(Debug)]
-pub struct GrammarTokenFragment<TN> {
-	name: TN
-}
+impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
+    type Item = Token<TN>;
+    type Accumulator = GrammarTreeBuilder<PN, TN>;
+	type ContextData = Grammar<PN, TN>;
 
-impl<TN> GrammarTokenFragment<TN> {
-	pub fn new(name: TN) -> Self {
-		GrammarTokenFragment { name }
-	}
-}
-
-impl<'a, PN: Copy, TN: Eq + Copy + fmt::Debug + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
-	fn compare(
-		&self,
-		view: &mut SequenceView<Token<TN>>,
-		acc: &mut GrammarTreeBuilder<PN, TN>,
-		_context: &Grammar<PN, TN>
-	) -> Result<(), String> {
-		if view.items().is_empty() {
-			return Err(format!("Unexpected end of file; expected {}", self.name))
+    fn compare(
+		&self, sequence: &mut SequenceView<Token<TN>>,
+		accumulator: &mut GrammarTreeBuilder<PN, TN>,
+		context: &MatcherContext<Grammar<PN, TN>>
+	) -> Result<(), crate::compare::MatchError> {
+        match self {
+			GrammarItemName::Terminal(token_name) => {
+				let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
+				if sequence.items().is_empty() {
+					return error;
+				}
+				let next_token = sequence.items().first().unwrap();
+				if next_token.name != *token_name {
+					return error;
+				}
+				sequence.index += 1;
+				accumulator.push_token(next_token.clone());
+				Ok(())
+			},
+			GrammarItemName::NonTerminal(proc_name) => {
+				if sequence.items().is_empty() {
+					return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
+				}
+				context.data.compare_proc(*proc_name, sequence.items(), accumulator)?;
+				Ok(())
+			}
 		}
-		let next_token = view.items().first().unwrap();
-		if next_token.name != self.name {
-			return Err(format!("Expected {}, but got {}", self.name, next_token));
-		}
-		view.advance(1);
-		acc.push_token(next_token.clone());
-		Ok(())
-	}
+    }
 }
+
+// #[derive(Debug)]
+// pub struct GrammarTokenFragment<TN> {
+// 	name: TN
+// }
+
+// impl<TN> GrammarTokenFragment<TN> {
+// 	pub fn new(name: TN) -> Self {
+// 		GrammarTokenFragment { name }
+// 	}
+// }
+
+// impl<'a, PN: Copy, TN: Eq + Copy + fmt::Debug + fmt::Display> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarTokenFragment<TN> {
+// 	fn compare(
+// 		&self,
+// 		view: &mut SequenceView<Token<TN>>,
+// 		acc: &mut GrammarTreeBuilder<PN, TN>,
+// 		_context: &Grammar<PN, TN>
+// 	) -> Result<(), String> {
+// 		if view.items().is_empty() {
+// 			return Err(format!("Unexpected end of file; expected {}", self.name))
+// 		}
+// 		let next_token = view.items().first().unwrap();
+// 		if next_token.name != self.name {
+// 			return Err(format!("Expected {}, but got {}", self.name, next_token));
+// 		}
+// 		view.advance(1);
+// 		acc.push_token(next_token.clone());
+// 		Ok(())
+// 	}
+// }
+
+// #[derive(Debug)]
+// pub struct GrammarProcFragment<PN> {
+// 	name: PN
+// }
+
+// impl<PN> GrammarProcFragment<PN> {
+// 	pub fn new(name: PN) -> Self {
+// 		GrammarProcFragment { name }
+// 	}
+// }
+
+// impl<'a, PN: Eq + Copy + fmt::Debug + fmt::Display, TN: Copy> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
+// 	fn compare(
+// 		&self,
+// 		view: &mut SequenceView<Token<TN>>,
+// 		acc: &mut GrammarTreeBuilder<PN, TN>,
+// 		context: &Grammar<PN, TN>
+// 	) -> Result<(), String> {
+// 		if view.items().is_empty() {
+// 			return Err(format!("Unexpected end of file; expected {}", self.name))
+// 		}
+// 		context.compare_proc(self.name, view, acc)?;
+// 		Ok(())
+// 	}
+// }
 
 #[derive(Debug)]
-pub struct GrammarProcFragment<PN> {
-	name: PN
-}
-
-impl<PN> GrammarProcFragment<PN> {
-	pub fn new(name: PN) -> Self {
-		GrammarProcFragment { name }
-	}
-}
-
-impl<'a, PN: Eq + Copy + fmt::Debug + fmt::Display, TN: Copy> Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>> for GrammarProcFragment<PN> {
-	fn compare(
-		&self,
-		view: &mut SequenceView<Token<TN>>,
-		acc: &mut GrammarTreeBuilder<PN, TN>,
-		context: &Grammar<PN, TN>
-	) -> Result<(), String> {
-		if view.items().is_empty() {
-			return Err(format!("Unexpected end of file; expected {}", self.name))
-		}
-		context.compare_proc(self.name, view, acc)?;
-		Ok(())
-	}
-}
-
-#[derive(Debug)]
-pub struct GrammarProc<PN: Clone, TN: Clone> {
+pub struct GrammarProc<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	name: PN,
-	fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>
+	graph: MatchGraph<GrammarItemName<PN, TN>>
 }
 
-impl<PN: Clone, TN: Clone> GrammarProc<PN, TN> {
-	pub fn new(name: PN, fragment: Box<dyn Fragment<Token<TN>, GrammarTreeBuilder<PN, TN>, Grammar<PN, TN>>>) -> Self {
-		GrammarProc { name, fragment }
+impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProc<PN, TN> {
+	pub fn new(name: PN, graph: MatchGraph<GrammarItemName<PN, TN>>) -> Self {
+		GrammarProc { name, graph }
 	}
 }
 
 #[derive(Debug)]
-pub struct Grammar<PN: Clone, TN: Clone> {
+pub struct Grammar<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	procs: Vec<GrammarProc<PN, TN>>
 }
 
-impl<PN: Eq + Copy, TN: Copy> Grammar<PN, TN> {
+impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
 	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
 		Grammar { procs }
 	}
 
-	pub fn parse(&self, proc: PN, tokens: Vec<Token<TN>>) -> Result<Tree<GrammarTreeNode<PN, TN>>, String> {
-		let mut seq_view = SequenceView::new(&tokens);
+	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<GrammarTreeNode<PN, TN>>, ParsingError> {
 		let mut tree_builder: GrammarTreeBuilder<PN, TN> = GrammarTreeBuilder::new();
-		self.compare_proc(proc, &mut seq_view, &mut tree_builder)?;
-		if seq_view.index() != tokens.len() {
-			return Err(format!("Invalid syntax: {}", seq_view.items().iter().map(|t| t.str.clone()).collect::<Vec<String>>().join("")))
+		match self.compare_proc(proc, &tokens, &mut tree_builder) {
+			Ok(_) => Ok(tree_builder.result.expect("Unexpected error occurred during compilation")),
+			Err(error) => {
+				let position = if error.index == tokens.len() {
+					match tokens.last() {
+						None => TokenPosition::new(0, 0),
+						Some(last_token) => TokenPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
+					}
+				} else {
+					tokens[error.index].pos.clone()
+				};
+				Err(ParsingError::new(format!("{error}"), position))
+			}
 		}
-		tree_builder.result
+		
 	}
 
 	fn compare_proc(
 		&self,
 		proc: PN,
-		view: &mut SequenceView<Token<TN>>,
+		tokens: &[Token<TN>],
 		acc: &mut GrammarTreeBuilder<PN, TN>,
-	) -> Result<(), String> {
-		let mut first_error: Option<String> = None;
+	) -> Result<(), MatchError> {
+		let mut error: Option<MatchError> = None;
 		acc.push_proc(proc);
 		for proc in self.procs.iter().filter(|p| p.name == proc) {
-			if let Err(msg) = proc.fragment.compare(view, acc, &self) {
-				if first_error.is_none() {
-					first_error = Some(msg);
+			if let Err(new_err) = proc.graph.compare(tokens, acc, &MatcherContext::new(&self, true)) {
+				if error.is_none() || new_err.depth > error.as_ref().unwrap().depth {
+					error = Some(new_err);
 				}
 			} else {
 				acc.pop_proc();
@@ -182,32 +227,77 @@ impl<PN: Eq + Copy, TN: Copy> Grammar<PN, TN> {
 			}
 		}
 		
-		Err(first_error.unwrap_or(String::from("Unexpected error during parsing")))
+		Err(error.expect("Unexpected error occurred during parsing"))
 	}
-}
-
-#[macro_export]
-macro_rules! grammar {
-	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
-		$crate::grammar::Grammar::new(vec![
-			$($crate::grammar::GrammarProc::new($proc_name, Box::new($crate::sequence!($($part),+)))),*
-		])
-	};
 }
 
 #[macro_export]
 macro_rules! token {
 	($name:expr) => {
-		$crate::grammar::GrammarTokenFragment::new($name)
+		|graph_builder: &mut $crate::compare::MatchGraphBuilder<_>| {
+			graph_builder.append(GrammarItemName::Terminal($name), None);
+		}
 	};
 }
 
 #[macro_export]
 macro_rules! proc {
 	($name:expr) => {
-		$crate::grammar::GrammarProcFragment::new($name)
+		|graph_builder: &mut $crate::compare::MatchGraphBuilder<_>| {
+			graph_builder.append(GrammarItemName::NonTerminal($name), None);
+		}
 	};
 }
+
+#[macro_export]
+macro_rules! grammar_proc {
+	($proc_name:expr; $($part:expr),+) => {
+		{
+			let mut graph_builder = $crate::compare::MatchGraphBuilder::new();
+
+			$(
+				$part(&mut graph_builder);
+			)+
+
+			GrammarProc::new($proc_name, graph_builder.complete())
+		}
+	}
+}
+
+#[macro_export]
+macro_rules! grammar {
+	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
+		Grammar::new(vec![
+			$(
+				$crate::grammar_proc!($proc_name; $($part),+)
+			),+
+		])
+	};
+}
+
+// #[macro_export]
+// macro_rules! grammar {
+// 	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
+// 		$crate::grammar::Grammar::new(vec![
+// 			$($crate::grammar::GrammarProc::new($proc_name, Box::new($crate::sequence!($($part),+)))),*
+// 		])
+// 	};
+// }
+
+// #[macro_export]
+// macro_rules! token {
+// 	($name:expr) => {
+// 		$crate::grammar::GrammarTokenFragment::new($name)
+// 	};
+// }
+
+// #[macro_export]
+// macro_rules! proc {
+// 	($name:expr) => {
+// 		$crate::grammar::GrammarProcFragment::new($name)
+// 	};
+// }
+
 #[cfg(test)]
 mod tests {
     use trees::tr;
@@ -222,11 +312,11 @@ mod tests {
 			'a' => token!('b');
 		);
 
-		let result = grammar.parse('a', vec![Token::new('b', String::from("123"), TokenPosition::new(6, 9))]);
+		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TokenPosition::new(6, 9))]);
 		assert_eq!(result, Ok(tr(GrammarTreeNode::Proc('a')) / tr(GrammarTreeNode::Token(Token::new('b', String::from("123"), TokenPosition::new(6, 9))))));
 
-		let result2 = grammar.parse('a', vec![Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
-		assert_eq!(result2, Err(String::from("Expected b, but got c \"123\" at 6:9")));
+		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TokenPosition::new(6, 9))));
 	}
 
 	#[test]
@@ -235,7 +325,7 @@ mod tests {
 			'a' => token!('b'), token!('c');
 		);
 
-		let result = grammar.parse('a', vec![
+		let result = grammar.parse('a', &[
 			Token::new('b', String::from("123"), TokenPosition::new(6, 9)),
 			Token::new('c', String::from("456"), TokenPosition::new(4, 20)),
 		]);
@@ -245,20 +335,21 @@ mod tests {
 				/ tr(GrammarTreeNode::Token(Token::new('c', String::from("456"), TokenPosition::new(4, 20))))
 		));
 
-		let result2 = grammar.parse('a', vec![
+		let result2 = grammar.parse('a', &[
 			Token::new('b', String::from("123"), TokenPosition::new(6, 9)),
 			Token::new('e', String::from("breaks here"), TokenPosition::new(4, 20)),
 		]);
-		assert_eq!(result2, Err(String::from("Expected c, but got e \"breaks here\" at 4:20")));
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TokenPosition::new(4, 20))));
 	}
 
+	#[test]
 	fn correctly_parses_single_proc() {
 		let grammar = grammar!(
 			'a' => proc!('b');
 			'b' => token!('c');
 		);
 
-		let result = grammar.parse('a', vec![Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
+		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
 		assert_eq!(result, Ok(
 			tr(GrammarTreeNode::Proc('a'))
 				/ (
@@ -267,33 +358,33 @@ mod tests {
 				)
 		));
 
-		let result2 = grammar.parse('a', vec![Token::new('x', String::from("123"), TokenPosition::new(6, 9))]);
-		assert_eq!(result2, Err(String::from("Expected c, but got x \"123\" at 6:9")));
+		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TokenPosition::new(6, 9))]);
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TokenPosition::new(6, 9))));
 	}
 
-	fn correctly_parses_mixed_sequence() {
-		let grammar = grammar!(
-			'a' => token!('x'), proc!('b');
-			'b' => token!('y');
-		);
+	// fn correctly_parses_mixed_sequence() {
+	// 	let grammar = grammar!(
+	// 		'a' => token!('x'), proc!('b');
+	// 		'b' => token!('y');
+	// 	);
 
-		let result = grammar.parse('a', vec![
-			Token::new('x', String::from("123"), TokenPosition::new(6, 9)),
-			Token::new('y', String::from("456"), TokenPosition::new(4, 20)),
-		]);
-		assert_eq!(result, Ok(
-			tr(GrammarTreeNode::Proc('a'))
-				/ tr(GrammarTreeNode::Token(Token::new('x', String::from("123"), TokenPosition::new(6, 9))))
-				/ (
-					tr(GrammarTreeNode::Proc('b'))
-						/ tr(GrammarTreeNode::Token(Token::new('c', String::from("456"), TokenPosition::new(4, 20))))
-				)
-		));
+	// 	let result = grammar.parse('a', vec![
+	// 		Token::new('x', String::from("123"), TokenPosition::new(6, 9)),
+	// 		Token::new('y', String::from("456"), TokenPosition::new(4, 20)),
+	// 	]);
+	// 	assert_eq!(result, Ok(
+	// 		tr(GrammarTreeNode::Proc('a'))
+	// 			/ tr(GrammarTreeNode::Token(Token::new('x', String::from("123"), TokenPosition::new(6, 9))))
+	// 			/ (
+	// 				tr(GrammarTreeNode::Proc('b'))
+	// 					/ tr(GrammarTreeNode::Token(Token::new('c', String::from("456"), TokenPosition::new(4, 20))))
+	// 			)
+	// 	));
 
-		let result2 = grammar.parse('a', vec![
-			Token::new('x', String::from("123"), TokenPosition::new(6, 9)),
-			Token::new('z', String::from("breaks here"), TokenPosition::new(4, 20)),
-		]);
-		assert_eq!(result2, Err(String::from("Expected y, but got z \"breaks here\" at 4:20")));
-	}
+	// 	let result2 = grammar.parse('a', vec![
+	// 		Token::new('x', String::from("123"), TokenPosition::new(6, 9)),
+	// 		Token::new('z', String::from("breaks here"), TokenPosition::new(4, 20)),
+	// 	]);
+	// 	assert_eq!(result2, Err(String::from("Expected y, but got z \"breaks here\" at 4:20")));
+	// }
 }

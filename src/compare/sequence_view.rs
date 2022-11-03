@@ -10,7 +10,14 @@ impl<'a, T> SequenceView<'a, T> {
 	}
 
 	pub fn items(&self) -> &'a [T] {
+		if self.is_empty() {
+			return &self.items[self.items.len()..];
+		}
 		&self.items[self.index ..]
+	}
+
+	pub fn is_empty(&self) -> bool {
+		self.index == self.items.len()
 	}
 }
 

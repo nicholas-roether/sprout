@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::compare::{Matcher, SequenceView, MatchGraph, MatchGraphBuilder, MatchError};
+use crate::compare::{Matcher, SequenceView, MatchGraph, MatchGraphBuilder, MatchError, MatcherContext};
 
 #[derive(Debug, Clone)]
 enum CharMatcher {
@@ -11,13 +11,13 @@ enum CharMatcher {
 impl Matcher for CharMatcher {
     type Item = char;
     type Accumulator = String;
-    type Context = ();
+    type ContextData = ();
 
     fn compare(
         &self,
         sequence: &mut SequenceView<char>,
         accumulator: &mut String,
-        _context: &()
+        _context: &MatcherContext<()>
     ) -> Result<(), crate::compare::MatchError> {
         match self {
             Self::Exact(char) => {
@@ -107,7 +107,7 @@ impl TokenMatcher {
     pub fn compare(&self, string: &str) -> Result<String, String> {
         let cmp_chars: Vec<char> = string.chars().collect();
         let mut result_str = String::new();
-        let result = self.pattern.compare(&cmp_chars, &mut result_str, &());
+        let result = self.pattern.compare(&cmp_chars, &mut result_str, &MatcherContext::new(&(), false));
         if let Err(err) = result {
             return Err(format!("(expr:{}) {}", err.index, err));
         }
@@ -263,19 +263,19 @@ mod tests {
         let mut strbuf: Vec<char> = vec![];
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("a", &mut strbuf), &mut str, &()), Ok(()));
+        assert_eq!(matcher.compare(&mut seq_view("a", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(str, String::from("a"));
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("abc", &mut strbuf), &mut str, &()), Ok(()));
+        assert_eq!(matcher.compare(&mut seq_view("abc", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(str, String::from("a"));
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("fsfd", &mut strbuf), &mut str, &()), Err(MatchError::simple("'a'".to_string(), 0)));
+        assert_eq!(matcher.compare(&mut seq_view("fsfd", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Err(MatchError::simple("'a'".to_string(), 0)));
 
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("", &mut strbuf), &mut str, &()), Err(MatchError::simple("'a'".to_string(), 0)));
+        assert_eq!(matcher.compare(&mut seq_view("", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Err(MatchError::simple("'a'".to_string(), 0)));
     }
 
     #[test]
@@ -285,22 +285,22 @@ mod tests {
         let mut strbuf: Vec<char> = vec![];
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("0", &mut strbuf), &mut str, &()), Err(MatchError::simple("char in range '1' to '3'".to_string(), 0)));
+        assert_eq!(matcher.compare(&mut seq_view("0", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Err(MatchError::simple("char in range '1' to '3'".to_string(), 0)));
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("1", &mut strbuf), &mut str, &()), Ok(()));
+        assert_eq!(matcher.compare(&mut seq_view("1", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(str, String::from("1"));
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("2", &mut strbuf), &mut str, &()), Ok(()));
+        assert_eq!(matcher.compare(&mut seq_view("2", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(str, String::from("2"));
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("3", &mut strbuf), &mut str, &()), Ok(()));
+        assert_eq!(matcher.compare(&mut seq_view("3", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(str, String::from("3"));
 
         let mut str = String::new();
-        assert_eq!(matcher.compare(&mut seq_view("4", &mut strbuf), &mut str, &()), Err(MatchError::simple("char in range '1' to '3'".to_string(), 0)));
+        assert_eq!(matcher.compare(&mut seq_view("4", &mut strbuf), &mut str, &MatcherContext::new(&(), false)), Err(MatchError::simple("char in range '1' to '3'".to_string(), 0)));
     }
 
     #[test]
