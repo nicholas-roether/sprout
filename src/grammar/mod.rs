@@ -1,13 +1,13 @@
 mod macros;
-mod builder;
+mod template;
 
-pub use builder::*;
+pub use template::*;
 
 use std::fmt;
 use trees::{Tree, tr};
 use crate::{tokenize::{Token, TokenPosition}, compare::{Matcher, SequenceView, MatcherContext, MatchError, MatchGraph}, ParsingError};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GrammarItemName<PN, TN> {
 	Terminal(TN),
 	NonTerminal(PN)
