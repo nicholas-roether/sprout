@@ -1,7 +1,12 @@
 [package]
 name = "arbor"
+description = "A rust crate for growing simple, but beautiful AST trees 🌳"
+homepage = "https://github.com/nicholas-roether/arbor"
+repository = "https://github.com/nicholas-roether/arbor"
+readme = "README.md"
 version = "0.1.0"
 edition = "2021"
+license-file = "LICENSE.txt"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
