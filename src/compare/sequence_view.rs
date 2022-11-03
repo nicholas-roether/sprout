@@ -39,6 +39,7 @@ mod tests {
 		assert_eq!(seq_view.index, 0);
 	}
 
+	#[test]
 	fn items_function_should_return_correclty() {
 		let items = &[1, 2, 3];
 		let seq_view = SequenceView::new(items);
@@ -46,6 +47,7 @@ mod tests {
 		assert_eq!(seq_view.items(), &[1, 2, 3]);
 	}
 
+	#[test]
 	fn items_function_should_account_for_index() {
 		let items = &[1, 2, 3];
 		let mut seq_view = SequenceView::new(items);
