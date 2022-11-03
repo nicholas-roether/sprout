@@ -4,7 +4,7 @@ mod template;
 pub use template::*;
 
 use std::fmt;
-use trees::{Tree, tr};
+use trees::{Tree, Forest};
 use crate::{tokenize::{Token, TokenPosition}, compare::{Matcher, SequenceView, MatcherContext, MatchError, MatchGraph}, ParsingError};
 
 #[derive(Debug, Clone)]
@@ -44,48 +44,97 @@ impl<PN: Copy, TN> GrammarTreeNode<PN, TN> {
 	}
 }
 
-#[derive(Debug, Clone)]
-pub struct GrammarTreeBuilder<PN: Clone, TN: Clone> {
-	tree_stack: Vec<Tree<GrammarTreeNode<PN, TN>>>,
-	result: Result<Tree<GrammarTreeNode<PN, TN>>, String>
+#[derive(Debug, PartialEq, Clone)]
+pub struct ASTNode<PN: fmt::Debug + PartialEq + Copy> {
+	pub proc: PN,
+	pub text: String,
+	pub pos: TokenPosition
 }
 
-impl<PN: Clone, TN: Clone> GrammarTreeBuilder<PN, TN> {
+impl<PN: fmt::Debug + PartialEq + Copy> ASTNode<PN> {
+	pub fn new(proc: PN, text: String, pos: TokenPosition) -> Self {
+		ASTNode { proc, text, pos }
+	}
+}
+
+#[derive(Debug, Clone)]
+struct ASTNodeBuilder<PN: Clone + fmt::Debug + Copy + PartialEq> {
+	name: PN,
+	children: Forest<ASTNode<PN>>,
+	text: String,
+	pos: Option<TokenPosition>
+}
+
+impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
+	fn new(name: PN) -> Self {
+		ASTNodeBuilder { name, children: Forest::new(), text: String::new(), pos: None }
+	}
+
+	fn push_token<TN>(&mut self, token: Token<TN>) {
+		self.text += &token.str;
+		if self.pos.is_none() {
+			self.pos = Some(token.pos);
+		}
+	}
+
+	fn push_child(&mut self, child: Tree<ASTNode<PN>>) {
+		self.text += &child.root().data().text;
+		if self.pos.is_none() {
+			self.pos = Some(child.root().data().pos.clone());
+		}
+		self.children.push_back(child);
+	}
+
+	fn build(self) -> Tree<ASTNode<PN>> {
+		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TokenPosition::new(0, 1)));
+		let mut tree = Tree::new(node);
+		tree.append(self.children);
+		tree
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct ASTBuilder<PN: Clone + fmt::Debug + Copy + PartialEq> {
+	build_stack: Vec<ASTNodeBuilder<PN>>,
+	result: Result<Tree<ASTNode<PN>>, String>
+}
+
+impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTBuilder<PN> {
 	fn new() -> Self {
-		GrammarTreeBuilder { tree_stack: vec![], result: Err(String::from("Syntax tree is incomplete!")) }
+		ASTBuilder { build_stack: vec![], result: Err(String::from("Syntax tree is incomplete!")) }
 	}
 
-	fn current_proc_mut<'b>(&'b mut self) -> &'b mut Tree<GrammarTreeNode<PN, TN>> {
-		self.tree_stack.last_mut().expect("Tried to push token, but no proc was pushed")
+	fn current_proc_builder_mut<'b>(&'b mut self) -> &'b mut ASTNodeBuilder<PN> {
+		self.build_stack.last_mut().expect("Tried to push to AST builder, but no proc was pushed")
 	}
 
-	fn push_token(&mut self, token: Token<TN>) {
-		self.current_proc_mut().push_back(tr(GrammarTreeNode::Token(token)));
+	fn push_token<TN>(&mut self, token: Token<TN>) {
+		self.current_proc_builder_mut().push_token(token);
 	}
 
 	fn push_proc(&mut self, name: PN) {
-		self.tree_stack.push(tr(GrammarTreeNode::Proc(name)));
+		self.build_stack.push(ASTNodeBuilder::new(name));
 	}
 
 	fn pop_proc(&mut self) {
-		if self.tree_stack.is_empty() { return; }
-		let popped_proc = self.tree_stack.pop().unwrap();
-		if self.tree_stack.is_empty() {
-			self.result = Ok(popped_proc);
+		if self.build_stack.is_empty() { return; }
+		let popped_builder = self.build_stack.pop().unwrap();
+		if self.build_stack.is_empty() {
+			self.result = Ok(popped_builder.build());
 		} else {
-			self.current_proc_mut().push_back(popped_proc);
+			self.current_proc_builder_mut().push_child(popped_builder.build());
 		}
 	}
 }
 
-impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
+impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
 	type Item = Token<TN>;
-	type Accumulator = GrammarTreeBuilder<PN, TN>;
+	type Accumulator = ASTBuilder<PN>;
   type ContextData = Grammar<PN, TN>;
 
 	fn compare(
 	  &self, sequence: &mut SequenceView<Token<TN>>,
-	  accumulator: &mut GrammarTreeBuilder<PN, TN>,
+	  accumulator: &mut ASTBuilder<PN>,
 	  context: &MatcherContext<Grammar<PN, TN>>
   ) -> Result<(), crate::compare::MatchError> {
 		 match self {
@@ -114,29 +163,29 @@ impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> M
 }
 
 #[derive(Debug)]
-pub struct GrammarProc<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
+pub struct GrammarProc<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
   name: PN,
   graph: MatchGraph<GrammarItemName<PN, TN>>
 }
 
-impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProc<PN, TN> {
+impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProc<PN, TN> {
   pub fn new(name: PN, graph: MatchGraph<GrammarItemName<PN, TN>>) -> Self {
 	  GrammarProc { name, graph }
   }
 }
 
 #[derive(Debug)]
-pub struct Grammar<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
+pub struct Grammar<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
   procs: Vec<GrammarProc<PN, TN>>
 }
 
-impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
+impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
   pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
 	  Grammar { procs }
   }
 
-  pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<GrammarTreeNode<PN, TN>>, ParsingError> {
-	  let mut tree_builder: GrammarTreeBuilder<PN, TN> = GrammarTreeBuilder::new();
+  pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<ASTNode<PN>>, ParsingError> {
+	  let mut tree_builder: ASTBuilder<PN> = ASTBuilder::new();
 	  let mut seq_view = SequenceView::new(tokens);
 	  match self.compare_proc(proc, &mut seq_view, &mut tree_builder) {
 		  Ok(_) => Ok(tree_builder.result.expect("Unexpected error occurred during compilation")),
@@ -159,7 +208,7 @@ impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> G
 	  &self,
 	  proc: PN,
 	  tokens: &mut SequenceView<Token<TN>>,
-	  acc: &mut GrammarTreeBuilder<PN, TN>,
+	  acc: &mut ASTBuilder<PN>,
   ) -> Result<(), MatchError> {
 	  let mut error: Option<MatchError> = None;
 	  acc.push_proc(proc);
@@ -193,7 +242,7 @@ mod tests {
 		);
 
 		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TokenPosition::new(6, 9))]);
-		assert_eq!(result, Ok(tr(GrammarTreeNode::Proc('a')) / tr(GrammarTreeNode::Token(Token::new('b', String::from("123"), TokenPosition::new(6, 9))))));
+		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TokenPosition::new(6, 9)))));
 
 		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
 		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TokenPosition::new(6, 9))));
@@ -209,11 +258,7 @@ mod tests {
 			Token::new('b', String::from("123"), TokenPosition::new(6, 9)),
 			Token::new('c', String::from("456"), TokenPosition::new(4, 20)),
 		]);
-		assert_eq!(result, Ok(
-			tr(GrammarTreeNode::Proc('a'))
-				/ tr(GrammarTreeNode::Token(Token::new('b', String::from("123"), TokenPosition::new(6, 9))))
-				/ tr(GrammarTreeNode::Token(Token::new('c', String::from("456"), TokenPosition::new(4, 20))))
-		));
+		assert_eq!(result, Ok(tr(ASTNode::new('a', "123456".to_string(), TokenPosition::new(6, 9)))));
 
 		let result2 = grammar.parse('a', &[
 			Token::new('b', String::from("123"), TokenPosition::new(6, 9)),
@@ -231,11 +276,8 @@ mod tests {
 
 		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
 		assert_eq!(result, Ok(
-			tr(GrammarTreeNode::Proc('a'))
-				/ (
-					tr(GrammarTreeNode::Proc('b'))
-						/ tr(GrammarTreeNode::Token(Token::new('c', String::from("123"), TokenPosition::new(6, 9))))
-				)
+			tr(ASTNode::new('a', "123".to_string(), TokenPosition::new(6, 9)))
+				/ tr(ASTNode::new('b', "123".to_string(), TokenPosition::new(6, 9)))
 		));
 
 		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TokenPosition::new(6, 9))]);
@@ -253,12 +295,8 @@ mod tests {
 			Token::new('y', String::from("456"), TokenPosition::new(4, 20)),
 		]);
 		assert_eq!(result, Ok(
-			tr(GrammarTreeNode::Proc('a'))
-				/ tr(GrammarTreeNode::Token(Token::new('x', String::from("123"), TokenPosition::new(6, 9))))
-				/ (
-					tr(GrammarTreeNode::Proc('b'))
-						/ tr(GrammarTreeNode::Token(Token::new('c', String::from("456"), TokenPosition::new(4, 20))))
-				)
+			tr(ASTNode::new('a', "123456".to_string(), TokenPosition::new(6, 9)))
+				/ tr(ASTNode::new('b', "456".to_string(), TokenPosition::new(4, 20)))
 		));
 
 		let result2 = grammar.parse('a', &[

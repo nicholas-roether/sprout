@@ -7,7 +7,7 @@ pub mod tokenize;
 pub mod grammar;
 
 use std::fmt;
-use grammar::{Grammar, GrammarTreeNode};
+use grammar::{Grammar, ASTNode};
 use tokenize::{Alphabet, TokenPosition};
 use trees::Tree;
 
@@ -41,7 +41,7 @@ impl<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + f
 		Parser { alphabet, grammar }
 	}
 
-	pub fn parse(&self, proc: PN, text: String) -> Result<Tree<GrammarTreeNode<PN, TN>>, ParsingError> {
+	pub fn parse(&self, proc: PN, text: String) -> Result<Tree<ASTNode<PN>>, ParsingError> {
 		let tokens = self.alphabet.tokenize(text)?;
 		self.grammar.parse(proc, &tokens)
 	}

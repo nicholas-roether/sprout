@@ -13,7 +13,7 @@ pub enum GrammarProcTemplate<PN, TN> {
 	Option(Box<GrammarProcTemplate<PN, TN>>)
 }
 
-impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProcTemplate<PN, TN> {
+impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProcTemplate<PN, TN> {
 	pub fn resolve(&self, name: PN) -> GrammarProc<PN, TN> {
 		let mut graph_builder = MatchGraphBuilder::new();
 		self.resolve_part(&mut graph_builder);
@@ -54,7 +54,7 @@ pub struct GrammarTemplate<PN, TN> {
 	proc_templates: Vec<(PN, GrammarProcTemplate<PN, TN>)>
 }
 
-impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarTemplate<PN, TN> {
+impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarTemplate<PN, TN> {
 	pub fn new(proc_templates: Vec<(PN, GrammarProcTemplate<PN, TN>)>) -> Self {
 		GrammarTemplate { proc_templates }
 	}
