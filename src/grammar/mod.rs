@@ -1,8 +1,10 @@
+mod macros;
+
 use std::fmt;
 
 use trees::{Tree, tr};
 
-use crate::{tokenize::{Token, TokenPosition}, compare::{Matcher, SequenceView, MatchGraph, MatchError, MatcherContext}, ParsingError};
+use crate::{tokenize::{Token, TokenPosition}, compare::{Matcher, SequenceView, MatcherContext, MatchError, MatchGraph}, ParsingError};
 
 #[derive(Debug)]
 pub enum GrammarItemName<PN, TN> {
@@ -76,154 +78,110 @@ impl<PN: Clone, TN: Clone> GrammarTreeBuilder<PN, TN> {
 }
 
 impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
-    type Item = Token<TN>;
-    type Accumulator = GrammarTreeBuilder<PN, TN>;
-	type ContextData = Grammar<PN, TN>;
+	type Item = Token<TN>;
+	type Accumulator = GrammarTreeBuilder<PN, TN>;
+  type ContextData = Grammar<PN, TN>;
 
-    fn compare(
-		&self, sequence: &mut SequenceView<Token<TN>>,
-		accumulator: &mut GrammarTreeBuilder<PN, TN>,
-		context: &MatcherContext<Grammar<PN, TN>>
-	) -> Result<(), crate::compare::MatchError> {
-        match self {
-			GrammarItemName::Terminal(token_name) => {
-				let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
-				if sequence.items().is_empty() {
-					return error;
-				}
-				let next_token = sequence.items().first().unwrap();
-				if next_token.name != *token_name {
-					return error;
-				}
-				sequence.index += 1;
-				accumulator.push_token(next_token.clone());
-				Ok(())
-			},
-			GrammarItemName::NonTerminal(proc_name) => {
-				if sequence.items().is_empty() {
-					return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
-				}
-				context.data.compare_proc(*proc_name, sequence, accumulator)?;
-				Ok(())
-			}
-		}
-    }
+	fn compare(
+	  &self, sequence: &mut SequenceView<Token<TN>>,
+	  accumulator: &mut GrammarTreeBuilder<PN, TN>,
+	  context: &MatcherContext<Grammar<PN, TN>>
+  ) -> Result<(), crate::compare::MatchError> {
+		 match self {
+		  GrammarItemName::Terminal(token_name) => {
+			  let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
+			  if sequence.items().is_empty() {
+				  return error;
+			  }
+			  let next_token = sequence.items().first().unwrap();
+			  if next_token.name != *token_name {
+				  return error;
+			  }
+			  sequence.index += 1;
+			  accumulator.push_token(next_token.clone());
+			  Ok(())
+		  },
+		  GrammarItemName::NonTerminal(proc_name) => {
+			  if sequence.items().is_empty() {
+				  return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
+			  }
+			  context.data.compare_proc(*proc_name, sequence, accumulator)?;
+			  Ok(())
+		  }
+	  }
+	}
 }
 
 #[derive(Debug)]
 pub struct GrammarProc<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
-	name: PN,
-	graph: MatchGraph<GrammarItemName<PN, TN>>
+  name: PN,
+  graph: MatchGraph<GrammarItemName<PN, TN>>
 }
 
 impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProc<PN, TN> {
-	pub fn new(name: PN, graph: MatchGraph<GrammarItemName<PN, TN>>) -> Self {
-		GrammarProc { name, graph }
-	}
+  pub fn new(name: PN, graph: MatchGraph<GrammarItemName<PN, TN>>) -> Self {
+	  GrammarProc { name, graph }
+  }
 }
 
 #[derive(Debug)]
 pub struct Grammar<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
-	procs: Vec<GrammarProc<PN, TN>>
+  procs: Vec<GrammarProc<PN, TN>>
 }
 
 impl<PN: PartialEq + Copy + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
-	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
-		Grammar { procs }
-	}
+  pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
+	  Grammar { procs }
+  }
 
-	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<GrammarTreeNode<PN, TN>>, ParsingError> {
-		let mut tree_builder: GrammarTreeBuilder<PN, TN> = GrammarTreeBuilder::new();
-		let mut seq_view = SequenceView::new(tokens);
-		match self.compare_proc(proc, &mut seq_view, &mut tree_builder) {
-			Ok(_) => Ok(tree_builder.result.expect("Unexpected error occurred during compilation")),
-			Err(error) => {
-				let position = if error.index == tokens.len() {
-					match tokens.last() {
-						None => TokenPosition::new(0, 0),
-						Some(last_token) => TokenPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
-					}
-				} else {
-					tokens[error.index].pos.clone()
-				};
-				Err(ParsingError::new(format!("{error}"), position))
-			}
-		}
-		
-	}
+  pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<GrammarTreeNode<PN, TN>>, ParsingError> {
+	  let mut tree_builder: GrammarTreeBuilder<PN, TN> = GrammarTreeBuilder::new();
+	  let mut seq_view = SequenceView::new(tokens);
+	  match self.compare_proc(proc, &mut seq_view, &mut tree_builder) {
+		  Ok(_) => Ok(tree_builder.result.expect("Unexpected error occurred during compilation")),
+		  Err(error) => {
+			  let position = if error.index == tokens.len() {
+				  match tokens.last() {
+					  None => TokenPosition::new(0, 0),
+					  Some(last_token) => TokenPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
+				  }
+			  } else {
+				  tokens[error.index].pos.clone()
+			  };
+			  Err(ParsingError::new(format!("{error}"), position))
+		  }
+	  }
+	  
+  }
 
-	fn compare_proc(
-		&self,
-		proc: PN,
-		tokens: &mut SequenceView<Token<TN>>,
-		acc: &mut GrammarTreeBuilder<PN, TN>,
-	) -> Result<(), MatchError> {
-		let mut error: Option<MatchError> = None;
-		acc.push_proc(proc);
-		for proc in self.procs.iter().filter(|p| p.name == proc) {
-			if let Err(new_err) = proc.graph.compare(tokens, acc, &MatcherContext::new(&self, true)) {
-				if error.is_none() || new_err.depth > error.as_ref().unwrap().depth {
-					error = Some(new_err);
-				}
-			} else {
-				acc.pop_proc();
-				return Ok(())
-			}
-		}
-		
-		Err(error.expect("Unexpected error occurred during parsing"))
-	}
-}
-
-#[macro_export]
-macro_rules! token {
-	($name:expr) => {
-		|graph_builder: &mut $crate::compare::MatchGraphBuilder<_>| {
-			graph_builder.append(GrammarItemName::Terminal($name), None);
-		}
-	};
-}
-
-#[macro_export]
-macro_rules! proc {
-	($name:expr) => {
-		|graph_builder: &mut $crate::compare::MatchGraphBuilder<_>| {
-			graph_builder.append(GrammarItemName::NonTerminal($name), None);
-		}
-	};
-}
-
-#[macro_export]
-macro_rules! grammar_proc {
-	($proc_name:expr; $($part:expr),+) => {
-		{
-			let mut graph_builder = $crate::compare::MatchGraphBuilder::new();
-
-			$(
-				$part(&mut graph_builder);
-			)+
-
-			GrammarProc::new($proc_name, graph_builder.complete())
-		}
-	}
-}
-
-#[macro_export]
-macro_rules! grammar {
-	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
-		Grammar::new(vec![
-			$(
-				$crate::grammar_proc!($proc_name; $($part),+)
-			),+
-		])
-	};
+  fn compare_proc(
+	  &self,
+	  proc: PN,
+	  tokens: &mut SequenceView<Token<TN>>,
+	  acc: &mut GrammarTreeBuilder<PN, TN>,
+  ) -> Result<(), MatchError> {
+	  let mut error: Option<MatchError> = None;
+	  acc.push_proc(proc);
+	  for proc in self.procs.iter().filter(|p| p.name == proc) {
+		  if let Err(new_err) = proc.graph.compare(tokens, acc, &MatcherContext::new(&self, true)) {
+			  if error.is_none() || new_err.depth > error.as_ref().unwrap().depth {
+				  error = Some(new_err);
+			  }
+		  } else {
+			  acc.pop_proc();
+			  return Ok(())
+		  }
+	  }
+	  
+	  Err(error.expect("Unexpected error occurred during parsing"))
+  }
 }
 
 #[cfg(test)]
 mod tests {
     use trees::tr;
 
-    use crate::tokenize::{Token, TokenPosition};
+    use crate::{tokenize::{Token, TokenPosition}, grammar, token, proc};
 
     use super::*;
 
