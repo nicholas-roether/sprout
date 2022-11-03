@@ -1,8 +1,8 @@
 [package]
-name = "arbor"
+name = "sprout"
 description = "A rust crate for growing simple, but beautiful AST trees 🌳"
-homepage = "https://github.com/nicholas-roether/arbor"
-repository = "https://github.com/nicholas-roether/arbor"
+homepage = "https://github.com/nicholas-roether/sprout"
+repository = "https://github.com/nicholas-roether/sprout"
 readme = "README.md"
 version = "0.1.0"
 edition = "2021"
