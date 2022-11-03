@@ -1,6 +1,6 @@
 use std::{vec, slice, fmt::{self, Debug}};
 
-use crate::token_match::{TokenMatcher, ExprParseError};
+use crate::{token_match::{TokenMatcher, ExprParseError}, ParsingError};
 
 #[derive(Debug)]
 struct TokenDefinition<N> {
@@ -83,7 +83,7 @@ impl<N: Copy> Alphabet<N> {
         self.token_defs.iter()
     }
 
-    pub fn tokenize(&self, string: String) -> Result<Vec<Token<N>>, String> {
+    pub fn tokenize(&self, string: String) -> Result<Vec<Token<N>>, ParsingError> {
         let mut tokens: Vec<Token<N>> = vec![];
         let mut index = 0;
         let mut pos = TokenPosition::new(1, 0);
@@ -100,7 +100,7 @@ impl<N: Copy> Alphabet<N> {
                 }
             }
             if !match_found {
-                return Err(format!("Unexpected character '{}' ({})", string.chars().nth(index).unwrap(), pos));
+                return Err(ParsingError::new(format!("Unexpected character '{}'", string.chars().nth(index).unwrap()), pos))
             }
             if index == string.len() {
                 break;

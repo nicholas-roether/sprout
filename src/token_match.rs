@@ -106,8 +106,9 @@ impl TokenMatcher {
 
     pub fn compare(&self, string: &str) -> Result<String, String> {
         let cmp_chars: Vec<char> = string.chars().collect();
+        let mut seq_view = SequenceView::new(&cmp_chars);
         let mut result_str = String::new();
-        let result = self.pattern.compare(&cmp_chars, &mut result_str, &MatcherContext::new(&(), false));
+        let result = self.pattern.compare(&mut seq_view, &mut result_str, &MatcherContext::new(&(), false));
         if let Err(err) = result {
             return Err(format!("(expr:{}) {}", err.index, err));
         }

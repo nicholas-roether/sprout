@@ -80,9 +80,8 @@ impl<M: Matcher> MatchGraph<M> {
 		MatchGraph { graph, root }
 	}
 
-	pub fn compare(&self, sequence: &[M::Item], accumulator: &mut M::Accumulator, context: &MatcherContext<M::ContextData>) -> Result<(), MatchError> {
-		let mut sequence_view = SequenceView::new(sequence);
-		self.compare_node(self.root, &mut sequence_view, accumulator, context)
+	pub fn compare(&self, sequence_view: &mut SequenceView<M::Item>, accumulator: &mut M::Accumulator, context: &MatcherContext<M::ContextData>) -> Result<(), MatchError> {
+		self.compare_node(self.root, sequence_view, accumulator, context)
 	}
 
 	fn compare_node(
@@ -203,11 +202,11 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, node);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'a', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'b', 'c'], &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 0, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 0, 0)));
 	}
 
 	#[test]
@@ -217,11 +216,11 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, node);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x'], &mut acc, &MatcherContext::new(&(), true)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x']), &mut acc, &MatcherContext::new(&(), true)), Ok(()));
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x', 'b', 'c'], &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 1, 1)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 1, 1)));
 	}
 
 	#[test]
@@ -233,11 +232,11 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, root);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'a', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'b', 'c'], &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 1, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 1, 0)));
 	}
 
 	#[test]
@@ -251,11 +250,11 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, root);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'a', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'b', 'c'], &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["Something".to_string()], 1, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["Something".to_string()], 1, 0)));
 	}
 
 	#[test]
@@ -269,15 +268,15 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, root);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x', 'a', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'a', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['y', 'a', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['y', 'a', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "y".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['z', 'b', 'c'], &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 1, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['z', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 1, 0)));
 	}
 
 	#[test]
@@ -291,15 +290,15 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, root);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x'], &mut acc, &MatcherContext::new(&(), true)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x']), &mut acc, &MatcherContext::new(&(), true)), Ok(()));
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['y'], &mut acc, &MatcherContext::new(&(), true)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['y']), &mut acc, &MatcherContext::new(&(), true)), Ok(()));
 		assert_eq!(acc, "y".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['x', 'b', 'c'], &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 2, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 2, 0)));
 	}
 
 	#[test]
@@ -317,15 +316,15 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, root);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'x', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "ax".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'y', 'b'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'y', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "ay".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'z', 'c'], &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 2, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'z', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 2, 0)));
 	}
 
 	#[test]
@@ -347,14 +346,14 @@ mod tests {
 		let graph = MatchGraph::new(di_graph, root);
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'x', 'x'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'x']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "axx".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'y', 'x'], &mut acc, &MatcherContext::new(&(), false)), Ok(()));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'y', 'x']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
 		assert_eq!(acc, "ayx".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&['a', 'x', 'c'], &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 3, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 3, 0)));
 	}
 }
