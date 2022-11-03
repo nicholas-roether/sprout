@@ -13,6 +13,38 @@ macro_rules! proc {
 }
 
 #[macro_export]
+macro_rules! choice {
+	($($($part:expr),+);+) => {
+		GrammarProcTemplate::Choice(vec![
+			$($crate::sequence!($($part),+)),+
+		])
+	};
+}
+
+#[macro_export]
+macro_rules! option {
+	($($part:expr),+) => {
+		GrammarProcTemplate::Choice(Box::new(
+			$crate::sequence!($($part),+)
+		))
+	};
+}
+
+#[macro_export]
+macro_rules! repeat {
+	($($part:expr),+; $min:expr) => {
+		GrammarProcTemplate::Repeat($min, Box::new(
+			$($crate::sequence!($($part),+)),+
+		))
+	};
+	($($part:expr),+) => {
+		GrammarProcTemplate::Repeat(0, Box::new(
+			$crate::sequence!($($part),+)
+		))
+	};
+}
+
+#[macro_export]
 macro_rules! sequence {
 	($part:expr) => {
 		$part
