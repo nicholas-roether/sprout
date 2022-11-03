@@ -300,7 +300,7 @@ mod tests {
 		assert_eq!(acc, "y".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 2, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 2, 1)));
 	}
 
 	#[test]
@@ -326,7 +326,7 @@ mod tests {
 		assert_eq!(acc, "ay".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'z', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 2, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'z', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 2, 1)));
 	}
 
 	#[test]
@@ -356,6 +356,6 @@ mod tests {
 		assert_eq!(acc, "ayx".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 3, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 3, 2)));
 	}
 }
