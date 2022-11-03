@@ -1,6 +1,6 @@
 use std::{vec, slice, fmt::{self, Debug}};
 
-use crate::{token_match::{TokenMatcher, ExprParseError}, ParsingError};
+use crate::{token_match::{TokenMatcher, ExprParseError}, ParsingError, TextPosition};
 
 #[derive(Debug)]
 struct TokenDefinition<N> {
@@ -14,17 +14,7 @@ impl<N> TokenDefinition<N> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TokenPosition {
-    pub line: usize,
-    pub char: usize
-}
-
-impl TokenPosition {
-    pub fn new(line: usize, char: usize) -> Self {
-        TokenPosition { line, char }
-    }
-
+impl TextPosition {
     fn advance(&mut self, str: &str) {
         for char in str.chars() {
             match char {
@@ -40,21 +30,15 @@ impl TokenPosition {
     }
 }
 
-impl fmt::Display for TokenPosition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.line, self.char)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token<N> {
     pub name: N,
     pub str: String,
-    pub pos: TokenPosition
+    pub pos: TextPosition
 }
 
 impl<N> Token<N> {
-    pub fn new(name: N, str: String, pos: TokenPosition) -> Self {
+    pub fn new(name: N, str: String, pos: TextPosition) -> Self {
         return Token { name, str, pos }
     }
 }
@@ -86,7 +70,7 @@ impl<N: Copy> Alphabet<N> {
     pub fn tokenize(&self, string: String) -> Result<Vec<Token<N>>, ParsingError> {
         let mut tokens: Vec<Token<N>> = vec![];
         let mut index = 0;
-        let mut pos = TokenPosition::new(1, 0);
+        let mut pos = TextPosition::new(1, 0);
 
         loop {
             let mut match_found = false;
@@ -193,11 +177,11 @@ mod tests {
         let tokens = tokens.unwrap();
         let mut token_iter = tokens.iter(); 
         
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TokenPosition::new(1, 0))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::AX, String::from("ax"), TokenPosition::new(1, 1))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::B, String::from("b"), TokenPosition::new(1, 3))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::EOL, String::from("\n"), TokenPosition::new(1, 4))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TokenPosition::new(2, 0))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TextPosition::new(1, 0))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::AX, String::from("ax"), TextPosition::new(1, 1))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::B, String::from("b"), TextPosition::new(1, 3))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::EOL, String::from("\n"), TextPosition::new(1, 4))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TextPosition::new(2, 0))));
         assert_eq!(token_iter.next(), None);
     }
 }

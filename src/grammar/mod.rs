@@ -5,7 +5,7 @@ pub use template::*;
 
 use std::fmt;
 use trees::{Tree, Forest};
-use crate::{tokenize::{Token, TokenPosition}, compare::{Matcher, SequenceView, MatcherContext, MatchError, MatchGraph}, ParsingError};
+use crate::{tokenize::Token, compare::{Matcher, SequenceView, MatcherContext, MatchError, MatchGraph}, ParsingError, TextPosition};
 
 #[derive(Debug, Clone)]
 pub enum GrammarItemName<PN, TN> {
@@ -48,11 +48,11 @@ impl<PN: Copy, TN> GrammarTreeNode<PN, TN> {
 pub struct ASTNode<PN: fmt::Debug + PartialEq + Copy> {
 	pub proc: PN,
 	pub text: String,
-	pub pos: TokenPosition
+	pub pos: TextPosition
 }
 
 impl<PN: fmt::Debug + PartialEq + Copy> ASTNode<PN> {
-	pub fn new(proc: PN, text: String, pos: TokenPosition) -> Self {
+	pub fn new(proc: PN, text: String, pos: TextPosition) -> Self {
 		ASTNode { proc, text, pos }
 	}
 }
@@ -62,7 +62,7 @@ struct ASTNodeBuilder<PN: Clone + fmt::Debug + Copy + PartialEq> {
 	name: PN,
 	children: Forest<ASTNode<PN>>,
 	text: String,
-	pos: Option<TokenPosition>
+	pos: Option<TextPosition>
 }
 
 impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
@@ -86,7 +86,7 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
 	}
 
 	fn build(self) -> Tree<ASTNode<PN>> {
-		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TokenPosition::new(0, 1)));
+		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TextPosition::new(0, 1)));
 		let mut tree = Tree::new(node);
 		tree.append(self.children);
 		tree
@@ -192,8 +192,8 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		  Err(error) => {
 			  let position = if error.index == tokens.len() {
 				  match tokens.last() {
-					  None => TokenPosition::new(0, 0),
-					  Some(last_token) => TokenPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
+					  None => TextPosition::new(0, 0),
+					  Some(last_token) => TextPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
 				  }
 			  } else {
 				  tokens[error.index].pos.clone()
@@ -231,7 +231,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 mod tests {
     use trees::tr;
 
-    use crate::{tokenize::{Token, TokenPosition}, grammar, token, proc};
+    use crate::{tokenize::Token, grammar, token, proc};
 
     use super::*;
 
@@ -241,11 +241,11 @@ mod tests {
 			'a' => token!('b');
 		);
 
-		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TokenPosition::new(6, 9))]);
-		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TokenPosition::new(6, 9)))));
+		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TextPosition::new(6, 9))]);
+		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9)))));
 
-		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TokenPosition::new(6, 9))));
+		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9))]);
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(6, 9))));
 	}
 
 	#[test]
@@ -255,16 +255,16 @@ mod tests {
 		);
 
 		let result = grammar.parse('a', &[
-			Token::new('b', String::from("123"), TokenPosition::new(6, 9)),
-			Token::new('c', String::from("456"), TokenPosition::new(4, 20)),
+			Token::new('b', String::from("123"), TextPosition::new(6, 9)),
+			Token::new('c', String::from("456"), TextPosition::new(4, 20)),
 		]);
-		assert_eq!(result, Ok(tr(ASTNode::new('a', "123456".to_string(), TokenPosition::new(6, 9)))));
+		assert_eq!(result, Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(6, 9)))));
 
 		let result2 = grammar.parse('a', &[
-			Token::new('b', String::from("123"), TokenPosition::new(6, 9)),
-			Token::new('e', String::from("breaks here"), TokenPosition::new(4, 20)),
+			Token::new('b', String::from("123"), TextPosition::new(6, 9)),
+			Token::new('e', String::from("breaks here"), TextPosition::new(4, 20)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TokenPosition::new(4, 20))));
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(4, 20))));
 	}
 
 	#[test]
@@ -274,14 +274,14 @@ mod tests {
 			'b' => token!('c');
 		);
 
-		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TokenPosition::new(6, 9))]);
+		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9))]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123".to_string(), TokenPosition::new(6, 9)))
-				/ tr(ASTNode::new('b', "123".to_string(), TokenPosition::new(6, 9)))
+			tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9)))
+				/ tr(ASTNode::new('b', "123".to_string(), TextPosition::new(6, 9)))
 		));
 
-		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TokenPosition::new(6, 9))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TokenPosition::new(6, 9))));
+		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TextPosition::new(6, 9))]);
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(6, 9))));
 	}
 
 	fn correctly_parses_mixed_sequence() {
@@ -291,18 +291,18 @@ mod tests {
 		);
 
 		let result = grammar.parse('a', &[
-			Token::new('x', String::from("123"), TokenPosition::new(6, 9)),
-			Token::new('y', String::from("456"), TokenPosition::new(4, 20)),
+			Token::new('x', String::from("123"), TextPosition::new(6, 9)),
+			Token::new('y', String::from("456"), TextPosition::new(4, 20)),
 		]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123456".to_string(), TokenPosition::new(6, 9)))
-				/ tr(ASTNode::new('b', "456".to_string(), TokenPosition::new(4, 20)))
+			tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(6, 9)))
+				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20)))
 		));
 
 		let result2 = grammar.parse('a', &[
-			Token::new('x', String::from("123"), TokenPosition::new(6, 9)),
-			Token::new('z', String::from("breaks here"), TokenPosition::new(4, 20)),
+			Token::new('x', String::from("123"), TextPosition::new(6, 9)),
+			Token::new('z', String::from("breaks here"), TextPosition::new(4, 20)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TokenPosition::new(4, 20))));
+		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20))));
 	}
 }
