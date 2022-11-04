@@ -7,7 +7,7 @@ pub mod tokenize;
 pub mod parse;
 
 use std::fmt;
-use parse::{Grammar, ASTNode};
+use parse::Grammar;
 use tokenize::Alphabet;
 use trees::Tree;
 
@@ -27,6 +27,19 @@ impl fmt::Display for TextPosition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}:{}", self.line, self.char)
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ASTNode<PN: fmt::Debug + PartialEq + Copy> {
+	pub proc: PN,
+	pub text: String,
+	pub pos: TextPosition
+}
+
+impl<PN: fmt::Debug + PartialEq + Copy> ASTNode<PN> {
+	pub fn new(proc: PN, text: String, pos: TextPosition) -> Self {
+		ASTNode { proc, text, pos }
+	}
 }
 
 #[derive(Debug, PartialEq, Eq)]
