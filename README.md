@@ -43,10 +43,12 @@ Now, you can use the `alphabet` macro to provide definitions for your tokens usi
 syntax that includes parentheses (`()`), square brackets (`[]`), ranges (`[a-z]`), as well as the operators `*`, `+` and `?`.
 
 ```rust
+use Token::*;
+
 let alphabet = alphabet! {
-   Token::Number => "[0-9]+";
-   Token::Word => "[a-z]+";
-   Token::Space => " "
+   Number => "[0-9]+";
+   Word => "[a-z]+";
+   Space => " "
 };
 ```
 
@@ -79,44 +81,34 @@ impl fmt::Display for Proc {
 }
 ```
 
-Finally, define your procedures using the `grammar` macro in conjunction with `token`, `proc`, `repeat`, `choice` and `option`.
+Finally, define your procedures using the `grammar` macro.
 
 ```rust
+use Token::*;
+use Proc::*;
+
 let grammar = grammar! {
-   Proc::TwoOrThreeWords =>
-      token!(Token::Word),
-      token!(Token::Space),
-      token!(Token::Word),
-      option!(
-         token!(Token::Space),
-         token!(Token::Word)
-      );
-   Proc::WordOrNumber =>
-      choice!(
-         token!(Token::Word);
-         token!(Token::Number)
-      );
-   Proc::Sequence =>
-      repeat!(
-         choice!(
-            proc!(Proc::TwoOrThreeWords);
-            proc!(Proc::WordOrNumber)
-         ),
-         token!(Token::Space)
-      ),
-      choice!(
-         proc!(Proc::TwoOrThreeWords);
-         proc!(Proc::WordOrNumber)
-      );
+   #TwoOrThreeWords => Word, Space, Word, (Space, Word)?;
+   #WordOrNumber => [Word; Number];
+   #Sequence =>
+      ([#TwoOrThreeWords; #WordOrNumber], Space)*,
+      [#TwoOrThreeWords; #WordOrNumber];
 };
 ```
 
-As you can see, using `proc`, procedures can reference other procedures in the grammar, or even themselves.
+As you can see in this example, within a grammar definition, names of procedures are always prefixed with a `#`.
+Names of tokens are simply left as-is. Sequences of tokens/procedures are comma-separated, and you can use the following
+special syntax for more complex patterns:
 
-Also: note _precedence_: The different paths in a `choice` will be checked in the order they appear, and including the content of an
-`option` will always be preferred over exluding it.
+| Syntax            | Description                                                                   |
+|-------------------|-------------------------------------------------------------------------------|
+| `(...)*`          | Repeat the content of the parentheses zero or more times                      |
+| `(...)+`          | Repeat the content of the parentheses one or more times                       |
+| `(...)?`          | The content of the parentheses is optional                                    |
+| `[...; ...; ...]` | Choose one of the options in the semicolon-separated list within the brackets |
 
-Finally, from your alphabet and grammar, you can construct a parser:
+
+Now, finally, from your alphabet and grammar, you can construct a parser:
 
 ```rust
 let parser = Parser::new(alphabet, grammar);
