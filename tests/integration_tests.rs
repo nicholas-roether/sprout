@@ -1,6 +1,6 @@
 use std::fmt;
 
-use sprout::{alphabet, grammar, ASTNode, token, option, choice, repeat, proc, Parser, TextPosition};
+use sprout::{alphabet, grammar, ASTNode, Parser, TextPosition};
 use trees::tr;
 
 #[test]
@@ -41,40 +41,21 @@ pub fn example_from_readme() {
 		}
 	}
 
+	use Token::*;
+	use Proc::*;
+
 	let alphabet = alphabet! {
-		Token::Number => "[0-9]+";
-		Token::Word => "[a-z]+";
-		Token::Space => " "
+		Number => "[0-9]+";
+		Word => "[a-z]+";
+		Space => " "
 	};
 
 	let grammar = grammar! {
-		Proc::TwoOrThreeWords =>
-			token!(Token::Word),
-			token!(Token::Space),
-			token!(Token::Word),
-			option!(
-				token!(Token::Space),
-				token!(Token::Word)
-			);
-		Proc::WordOrNumber =>
-			choice!(
-				token!(Token::Word);
-				token!(Token::Number)
-			);
-		Proc::Sequence =>
-			repeat!(
-				choice!(
-					proc!(Proc::TwoOrThreeWords);
-					proc!(Proc::WordOrNumber)
-				),
-				token!(Token::Space)
-			),
-			choice!(
-				proc!(Proc::TwoOrThreeWords);
-				proc!(Proc::WordOrNumber)
-			);
+		#TwoOrThreeWords => Word, Space, Word, (Space, Word)?;
+		#WordOrNumber => [Word; Number];
+		#Sequence => ([#TwoOrThreeWords; #WordOrNumber], Space)*, [#TwoOrThreeWords; #WordOrNumber];
 	};
-
+	
 	let parser = Parser::new(alphabet, grammar);
 
 	let tree = parser.parse(Proc::Sequence, "abc ab 123 xyz 69".to_string());

@@ -216,14 +216,14 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 mod tests {
     use trees::tr;
 
-    use crate::{tokenize::Token, token, proc, grammar};
+    use crate::{tokenize::Token, grammar};
 
     use super::*;
 
 	#[test]
 	fn correctly_parses_single_token() {
 		let grammar = grammar!(
-			'a' => token!('b');
+			#'a' => 'b';
 		);
 
 		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TextPosition::new(6, 9))]);
@@ -236,7 +236,7 @@ mod tests {
 	#[test]
 	fn correctly_parses_token_sequence() {
 		let grammar = grammar!(
-			'a' => token!('b'), token!('c');
+			#'a' => 'b', 'c';
 		);
 
 		let result = grammar.parse('a', &[
@@ -255,8 +255,8 @@ mod tests {
 	#[test]
 	fn correctly_parses_single_proc() {
 		let grammar = grammar!(
-			'a' => proc!('b');
-			'b' => token!('c');
+			#'a' => #'b';
+			#'b' => 'c';
 		);
 
 		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9))]);
@@ -272,8 +272,8 @@ mod tests {
 	#[test]
 	fn correctly_parses_mixed_sequence() {
 		let grammar = grammar!(
-			'a' => token!('x'), proc!('b'), token!('z');
-			'b' => token!('y');
+			#'a' => 'x', #'b', 'z';
+			#'b' => 'y';
 		);
 
 		let result = grammar.parse('a', &[
