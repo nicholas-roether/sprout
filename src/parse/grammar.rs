@@ -70,7 +70,7 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
 	}
 
 	fn build(self) -> Tree<ASTNode<PN>> {
-		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TextPosition::new(0, 1)));
+		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TextPosition::new(1, 0)));
 		let mut tree = Tree::new(node);
 		tree.append(self.children);
 		tree
@@ -176,7 +176,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		  Err(error) => {
 			  let position = if error.index == tokens.len() {
 				  match tokens.last() {
-					  None => TextPosition::new(0, 0),
+					  None => TextPosition::new(1, 0),
 					  Some(last_token) => TextPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
 				  }
 			  } else {
