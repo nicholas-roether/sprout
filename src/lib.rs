@@ -42,6 +42,8 @@ impl<PN: fmt::Debug + PartialEq + Copy> ASTNode<PN> {
 	}
 }
 
+pub type AST<PN> = Tree<ASTNode<PN>>;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParsingError {
 	pub message: String,
@@ -71,7 +73,7 @@ impl<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + f
 		Parser { alphabet, grammar }
 	}
 
-	pub fn parse(&self, proc: PN, text: String) -> Result<Tree<ASTNode<PN>>, ParsingError> {
+	pub fn parse(&self, proc: PN, text: String) -> Result<AST<PN>, ParsingError> {
 		let tokens = self.alphabet.tokenize(text)?;
 		self.grammar.parse(proc, &tokens)
 	}

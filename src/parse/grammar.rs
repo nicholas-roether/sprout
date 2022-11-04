@@ -2,7 +2,7 @@ use std::fmt;
 
 use trees::{Forest, Tree};
 
-use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, MatcherContext, MatchError, MatchGraph, Matcher}, ParsingError};
+use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, MatcherContext, MatchError, MatchGraph, Matcher}, ParsingError, AST};
 
 #[derive(Debug, Clone)]
 pub enum GrammarItemName<PN, TN> {
@@ -61,7 +61,7 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
 		}
 	}
 
-	fn push_child(&mut self, child: Tree<ASTNode<PN>>) {
+	fn push_child(&mut self, child: AST<PN>) {
 		self.text += &child.root().data().text;
 		if self.pos.is_none() {
 			self.pos = Some(child.root().data().pos.clone());
@@ -69,7 +69,7 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
 		self.children.push_back(child);
 	}
 
-	fn build(self) -> Tree<ASTNode<PN>> {
+	fn build(self) -> AST<PN> {
 		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TextPosition::new(1, 0)));
 		let mut tree = Tree::new(node);
 		tree.append(self.children);
@@ -80,7 +80,7 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
 #[derive(Debug, Clone)]
 pub struct ASTBuilder<PN: Clone + fmt::Debug + Copy + PartialEq> {
 	build_stack: Vec<ASTNodeBuilder<PN>>,
-	result: Result<Tree<ASTNode<PN>>, String>
+	result: Result<AST<PN>, String>
 }
 
 impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTBuilder<PN> {
@@ -168,7 +168,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	  Grammar { procs }
 	}
 
-	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<Tree<ASTNode<PN>>, ParsingError> {
+	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<AST<PN>, ParsingError> {
 	  let mut tree_builder: ASTBuilder<PN> = ASTBuilder::new();
 	  let mut seq_view = SequenceView::new(tokens);
 	  match self.compare_proc(proc, &mut seq_view, &mut tree_builder, true) {

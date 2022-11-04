@@ -131,10 +131,12 @@ Sequence "abc ab 123 xyz 69"
    WordOrNumber "69"
 ```
 
-Specifically, the output format is a `trees::Tree` of `ASTNode`s, where `ASTNode` has these fields:
+Specifically, the output type, `AST`, is an alias for a `trees::Tree` of `ASTNode`s, where `ASTNode` has these fields:
 
 | Name | Type                                          | Description                                           |
 |------|-----------------------------------------------|-------------------------------------------------------|
 | proc | `Proc` (or whatever you called it)            | The procedure that this node corresponds to           |
 | text | `String`                                      | The text contained in the instance of the procedure   |
 | pos  | `TextPosition` (has fields `line` and `char`) | The position of the start of the instance in the text |
+
+For more information about the API of `trees::Tree` see [the trees documentation](https://docs.rs/crate/trees/latest)
