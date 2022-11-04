@@ -4,10 +4,10 @@ mod token_match;
 
 pub mod compare;
 pub mod tokenize;
-pub mod grammar;
+pub mod parse;
 
 use std::fmt;
-use grammar::{Grammar, ASTNode};
+use parse::{Grammar, ASTNode};
 use tokenize::Alphabet;
 use trees::Tree;
 

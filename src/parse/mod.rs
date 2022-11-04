@@ -232,7 +232,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 mod tests {
     use trees::tr;
 
-    use crate::{tokenize::Token, grammar, token, proc};
+    use crate::{tokenize::Token, token, proc, grammar};
 
     use super::*;
 

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use sprout::{alphabet, grammar, grammar::ASTNode, token, option, choice, repeat, proc, Parser, TextPosition};
+use sprout::{alphabet, grammar, parse::ASTNode, token, option, choice, repeat, proc, Parser, TextPosition};
 use trees::tr;
 
 #[test]

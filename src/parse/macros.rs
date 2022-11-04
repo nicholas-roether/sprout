@@ -1,21 +1,21 @@
 #[macro_export]
 macro_rules! token {
 	($name:expr) => {
-		$crate::grammar::GrammarProcTemplate::Token($name)
+		$crate::parse::GrammarProcTemplate::Token($name)
 	};
 }
 
 #[macro_export]
 macro_rules! proc {
 	($name:expr) => {
-		$crate::grammar::GrammarProcTemplate::Proc($name)
+		$crate::parse::GrammarProcTemplate::Proc($name)
 	};
 }
 
 #[macro_export]
 macro_rules! choice {
 	($($($part:expr),+);+) => {
-		$crate::grammar::GrammarProcTemplate::Choice(vec![
+		$crate::parse::GrammarProcTemplate::Choice(vec![
 			$($crate::sequence!($($part),+)),+
 		])
 	};
@@ -24,7 +24,7 @@ macro_rules! choice {
 #[macro_export]
 macro_rules! option {
 	($($part:expr),+) => {
-		$crate::grammar::GrammarProcTemplate::Option(Box::new(
+		$crate::parse::GrammarProcTemplate::Option(Box::new(
 			$crate::sequence!($($part),+)
 		))
 	};
@@ -33,12 +33,12 @@ macro_rules! option {
 #[macro_export]
 macro_rules! repeat {
 	($($part:expr),+; $min:expr) => {
-		$crate::grammar::GrammarProcTemplate::Repeat($min, Box::new(
+		$crate::parse::GrammarProcTemplate::Repeat($min, Box::new(
 			$($crate::sequence!($($part),+)),+
 		))
 	};
 	($($part:expr),+) => {
-		$crate::grammar::GrammarProcTemplate::Repeat(0, Box::new(
+		$crate::parse::GrammarProcTemplate::Repeat(0, Box::new(
 			$crate::sequence!($($part),+)
 		))
 	};
@@ -50,7 +50,7 @@ macro_rules! sequence {
 		$part
 	};
 	($($part:expr),+) => {
-		$crate::grammar::GrammarProcTemplate::Sequence(vec![$($part),+])
+		$crate::parse::GrammarProcTemplate::Sequence(vec![$($part),+])
 	};
 }
 
@@ -58,7 +58,7 @@ macro_rules! sequence {
 macro_rules! grammar {
 	($($proc_name:expr => $($part:expr),+);*$(;)?) => {
 		{
-			let template = $crate::grammar::GrammarTemplate::new(vec![
+			let template = $crate::parse::GrammarTemplate::new(vec![
 				$(($proc_name, $crate::sequence!($($part),+))),+
 			]);
 			template.resolve()
