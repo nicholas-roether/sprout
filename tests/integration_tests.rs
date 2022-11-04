@@ -1,6 +1,6 @@
 use std::fmt;
 
-use sprout::{alphabet, grammar, ASTNode, Parser, TextPosition};
+use sprout::prelude::*;
 use trees::tr;
 
 #[test]
@@ -55,7 +55,7 @@ pub fn example_from_readme() {
 		#WordOrNumber => [Word; Number];
 		#Sequence => ([#TwoOrThreeWords; #WordOrNumber], Space)*, [#TwoOrThreeWords; #WordOrNumber];
 	};
-	
+
 	let parser = Parser::new(alphabet, grammar);
 
 	let tree = parser.parse(Proc::Sequence, "abc ab 123 xyz 69".to_string());

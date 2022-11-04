@@ -11,6 +11,14 @@ and grammars built from those tokens.
 
 ## Usage
 
+You can start by importing the sprout prelude. For most projects, this will be sufficient.
+
+```rust
+use sprout::prelude::*;
+```
+
+### Example
+
 First, define an enum for your tokens. It should derive the necessary traits shown below.
 
 ```rust

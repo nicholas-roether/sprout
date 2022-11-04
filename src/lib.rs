@@ -5,6 +5,7 @@ mod compare;
 
 pub mod tokenize;
 pub mod parse;
+pub mod prelude;
 
 use std::fmt;
 use parse::Grammar;
