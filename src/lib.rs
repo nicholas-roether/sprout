@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 mod token_match;
+mod compare;
 
-pub mod compare;
 pub mod tokenize;
 pub mod parse;
 
