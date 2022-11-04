@@ -32,6 +32,7 @@ fn move_all_connections<N, E: Clone>(graph: &mut DiGraph<N, E>, from: NodeIndex,
 	}
 }
 
+#[derive(Debug)]
 pub struct MatchGraphBuilder<M: Matcher> {
 	graph: DiGraph<MatchNodeData<M>, u32>,
 	root: NodeIndex,
