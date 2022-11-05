@@ -16,6 +16,7 @@ impl<N> TokenDefinition<N> {
 
 impl TextPosition {
     fn advance(&mut self, str: &str) {
+        self.index += str.len();
         for char in str.chars() {
             match char {
                 '\n' => {
@@ -52,7 +53,7 @@ impl<N> Token<N> {
     /// 
     /// enum TokenName { ABC }
     /// 
-    /// Token::new(TokenName::ABC, "abc".to_string(), TextPosition::new(4, 20));
+    /// Token::new(TokenName::ABC, "abc".to_string(), TextPosition::new(4, 20, 69));
     /// ```
     pub fn new(name: N, str: String, pos: TextPosition) -> Self {
         return Token { name, str, pos }
@@ -151,7 +152,7 @@ impl<N: Copy> Alphabet<N> {
     pub fn tokenize(&self, string: String) -> Result<Vec<Token<N>>, ParsingError> {
         let mut tokens: Vec<Token<N>> = vec![];
         let mut index = 0;
-        let mut pos = TextPosition::new(1, 0);
+        let mut pos = TextPosition::new(1, 0, 0);
 
         loop {
             let mut match_found = false;
@@ -277,15 +278,15 @@ mod tests {
             TokenName::EOL => "\n";
         };
         let tokens = abc.tokenize(String::from("aaxb\na"));
-        assert!(tokens.is_ok(), "Should tokenize \"axb\\na\"");
+        assert!(tokens.is_ok(), "Should tokenize \"aaxb\\na\"");
         let tokens = tokens.unwrap();
         let mut token_iter = tokens.iter(); 
         
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TextPosition::new(1, 0))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::AX, String::from("ax"), TextPosition::new(1, 1))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::B, String::from("b"), TextPosition::new(1, 3))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::EOL, String::from("\n"), TextPosition::new(1, 4))));
-        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TextPosition::new(2, 0))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TextPosition::new(1, 0, 0))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::AX, String::from("ax"), TextPosition::new(1, 1, 1))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::B, String::from("b"), TextPosition::new(1, 3, 3))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::EOL, String::from("\n"), TextPosition::new(1, 4, 4))));
+        assert_eq!(token_iter.next(), Some(&Token::new(TokenName::A, String::from("a"), TextPosition::new(2, 0, 5))));
         assert_eq!(token_iter.next(), None);
     }
 }

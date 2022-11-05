@@ -51,7 +51,7 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTNodeBuilder<PN> {
 	}
 
 	fn build(self) -> AST<PN> {
-		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TextPosition::new(1, 0)));
+		let node = ASTNode::new(self.name, self.text, self.pos.unwrap_or(TextPosition::new(1, 0, 0)));
 		let mut tree = Tree::new(node);
 		tree.append(self.children);
 		tree
@@ -225,8 +225,8 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	/// use sprout::{parse::Grammar, tokenize::Token};
 	/// 
 	/// grammar.parse(Proc::Sentence, &[
-	/// 	Token::new(TokenName::Word, "abc".to_string(), TextPosition::new(1, 0)),
-	/// 	Token::new(TokenName::Word, "xyz".to_string(), TextPosition::new(1, 3))
+	/// 	Token::new(TokenName::Word, "abc".to_string(), TextPosition::new(1, 0, 0)),
+	/// 	Token::new(TokenName::Word, "xyz".to_string(), TextPosition::new(1, 3, 3))
 	/// ]);
 	/// ```
 	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<AST<PN>, ParsingError> {
@@ -237,8 +237,12 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			Err(error) => {
 				let position = if error.index == tokens.len() {
 				match tokens.last() {
-					None => TextPosition::new(1, 0),
-					Some(last_token) => TextPosition::new(last_token.pos.line, last_token.pos.char + last_token.str.len())
+					None => TextPosition::new(1, 0, 0),
+					Some(last_token) => TextPosition::new(
+						last_token.pos.line,
+						last_token.pos.char + last_token.str.len(),
+						last_token.pos.index + last_token.str.len()
+					)
 				}
 				} else {
 					tokens[error.index].pos.clone()
@@ -286,11 +290,11 @@ mod tests {
 			#'a' => 'b';
 		);
 
-		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TextPosition::new(6, 9))]);
-		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9)))));
+		let result = grammar.parse('a', &[Token::new('b', String::from("123"), TextPosition::new(6, 9, 420))]);
+		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9, 420)))));
 
-		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(6, 9))));
+		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9, 420))]);
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(6, 9, 420))));
 	}
 
 	#[test]
@@ -300,16 +304,16 @@ mod tests {
 		);
 
 		let result = grammar.parse('a', &[
-			Token::new('b', String::from("123"), TextPosition::new(6, 9)),
-			Token::new('c', String::from("456"), TextPosition::new(4, 20)),
+			Token::new('b', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('c', String::from("456"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result, Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(6, 9)))));
+		assert_eq!(result, Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(6, 9, 420)))));
 
 		let result2 = grammar.parse('a', &[
-			Token::new('b', String::from("123"), TextPosition::new(6, 9)),
-			Token::new('e', String::from("breaks here"), TextPosition::new(4, 20)),
+			Token::new('b', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('e', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(4, 20))));
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(4, 20, 69))));
 	}
 
 	#[test]
@@ -319,14 +323,14 @@ mod tests {
 			#'b' => 'c';
 		);
 
-		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9))]);
+		let result = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9, 420))]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9)))
-				/ tr(ASTNode::new('b', "123".to_string(), TextPosition::new(6, 9)))
+			tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9, 420)))
+				/ tr(ASTNode::new('b', "123".to_string(), TextPosition::new(6, 9, 420)))
 		));
 
-		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TextPosition::new(6, 9))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(6, 9))));
+		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TextPosition::new(6, 9, 420))]);
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(6, 9, 420))));
 	}
 
 	#[test]
@@ -337,19 +341,19 @@ mod tests {
 		);
 
 		let result = grammar.parse('a', &[
-			Token::new('x', String::from("123"), TextPosition::new(6, 9)),
-			Token::new('y', String::from("456"), TextPosition::new(4, 20)),
-			Token::new('z', String::from("789"), TextPosition::new(1, 2)),
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('y', String::from("456"), TextPosition::new(4, 20, 69)),
+			Token::new('z', String::from("789"), TextPosition::new(1, 2, 3)),
 		]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(6, 9)))
-				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20)))
+			tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(6, 9, 420)))
+				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20, 69)))
 		));
 
 		let result2 = grammar.parse('a', &[
-			Token::new('x', String::from("123"), TextPosition::new(6, 9)),
-			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20)),
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20))));
+		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20, 69))));
 	}
 }

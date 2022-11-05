@@ -62,11 +62,11 @@ pub fn example_from_readme() {
 	assert_eq!(
 		tree,
 		Ok(
-			tr(ASTNode::new(Proc::Sequence, "abc ab 123 xyz 69".to_string(), TextPosition::new(1, 0)))
-				/ tr(ASTNode::new(Proc::TwoOrThreeWords, "abc ab".to_string(), TextPosition::new(1, 0)))
-				/ tr(ASTNode::new(Proc::WordOrNumber, "123".to_string(), TextPosition::new(1, 7)))
-				/ tr(ASTNode::new(Proc::WordOrNumber, "xyz".to_string(), TextPosition::new(1, 11)))
-				/ tr(ASTNode::new(Proc::WordOrNumber, "69".to_string(), TextPosition::new(1, 15)))
+			tr(ASTNode::new(Proc::Sequence, "abc ab 123 xyz 69".to_string(), TextPosition::new(1, 0, 0)))
+				/ tr(ASTNode::new(Proc::TwoOrThreeWords, "abc ab".to_string(), TextPosition::new(1, 0, 0)))
+				/ tr(ASTNode::new(Proc::WordOrNumber, "123".to_string(), TextPosition::new(1, 7, 7)))
+				/ tr(ASTNode::new(Proc::WordOrNumber, "xyz".to_string(), TextPosition::new(1, 11, 11)))
+				/ tr(ASTNode::new(Proc::WordOrNumber, "69".to_string(), TextPosition::new(1, 15, 15)))
 		)
 	)
 }

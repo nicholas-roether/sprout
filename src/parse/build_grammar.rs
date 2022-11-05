@@ -378,10 +378,10 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('y', "456".to_string(), TextPosition::new(1, 3))
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('y', "456".to_string(), TextPosition::new(1, 3, 3))
 			]),
-			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0, 0))))
 		);
 	}
 
@@ -394,18 +394,18 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('y', "456".to_string(), TextPosition::new(1, 3))
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('y', "456".to_string(), TextPosition::new(1, 3, 3))
 			]),
-			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0, 0))))
 		);
 
 		assert_eq!(
 			grammar.parse('b', &[
-				Token::new('z', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('w', "456".to_string(), TextPosition::new(1, 3))
+				Token::new('z', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('w', "456".to_string(), TextPosition::new(1, 3, 3))
 			]),
-			Ok(tr(ASTNode::new('b', "123456".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('b', "123456".to_string(), TextPosition::new(1, 0, 0))))
 		);
 	}
 
@@ -418,12 +418,12 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('y', "456".to_string(), TextPosition::new(1, 3))
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('y', "456".to_string(), TextPosition::new(1, 3, 3))
 			]),
 			Ok(
-				tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0)))
-					/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(1, 3)))
+				tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0, 0)))
+					/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(1, 3, 3)))
 			)
 		);
 	}
@@ -436,16 +436,16 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[]),
-			Ok(tr(ASTNode::new('a', "".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "".to_string(), TextPosition::new(1, 0, 0))))
 		);
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('x', "456".to_string(), TextPosition::new(1, 3)),
-				Token::new('x', "789".to_string(), TextPosition::new(1, 6)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('x', "456".to_string(), TextPosition::new(1, 3, 3)),
+				Token::new('x', "789".to_string(), TextPosition::new(1, 6, 6)),
 			]),
-			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0, 0))))
 		);
 	}
 
@@ -459,11 +459,11 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('x', "456".to_string(), TextPosition::new(1, 3)),
-				Token::new('x', "789".to_string(), TextPosition::new(1, 6)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('x', "456".to_string(), TextPosition::new(1, 3, 3)),
+				Token::new('x', "789".to_string(), TextPosition::new(1, 6, 6)),
 			]),
-			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0, 0))))
 		);
 	}
 
@@ -475,17 +475,17 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
 			]),
-			Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(1, 0, 0))))
 		);
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
-				Token::new('y', "456".to_string(), TextPosition::new(1, 3)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('y', "456".to_string(), TextPosition::new(1, 3, 3)),
 			]),
-			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0, 0))))
 		);
 	}
 
@@ -497,21 +497,21 @@ mod tests {
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('x', "123".to_string(), TextPosition::new(1, 0)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
 			]),
-			Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(1, 0, 0))))
 		);
 
 		assert_eq!(
 			grammar.parse('a', &[
-				Token::new('y', "123".to_string(), TextPosition::new(1, 0)),
+				Token::new('y', "123".to_string(), TextPosition::new(1, 0, 0)),
 			]),
-			Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(1, 0))))
+			Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(1, 0, 0))))
 		);
 
 		assert!(
 			grammar.parse('a', &[
-				Token::new('z', "123".to_string(), TextPosition::new(1, 0)),
+				Token::new('z', "123".to_string(), TextPosition::new(1, 0, 0)),
 			]).is_err()
 		);
 	}

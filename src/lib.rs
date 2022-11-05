@@ -24,17 +24,19 @@ pub struct TextPosition {
 	/// **Important**: The first line has line number 1, _not_ 0.
     pub line: usize,
 	/// The index of the character this position points to within the line.
-    pub char: usize
+    pub char: usize,
+	/// The global index of the character this position points to within the text.
+	pub index: usize
 }
 
 impl TextPosition {
-	/// Constructs a new `TextPosition.
+	/// Constructs a new `TextPosition`.
 	/// 
 	/// **Important**: While this constructor won't prevent you from doing it,
 	/// you shouldn't enter 0 as a value for `line`. The `line` value of a text position
 	/// is usually assumed to start at 1.
-    pub fn new(line: usize, char: usize) -> Self {
-        TextPosition { line, char }
+    pub fn new(line: usize, char: usize, index: usize) -> Self {
+        TextPosition { line, char, index }
     }
 }
 
@@ -75,7 +77,7 @@ impl<PN: fmt::Debug + PartialEq + Copy> ASTNode<PN> {
 	/// # #[derive(std::fmt::Debug, PartialEq, Clone, Copy)]
 	/// # enum Proc { SomeProcName }
 	/// #
-	/// ASTNode::new(Proc::SomeProcName, "abc".to_string(), TextPosition::new(6, 9));
+	/// ASTNode::new(Proc::SomeProcName, "abc".to_string(), TextPosition::new(6, 9, 123));
 	/// ```
 	pub fn new(proc: PN, text: String, pos: TextPosition) -> Self {
 		ASTNode { proc, text, pos }
@@ -108,7 +110,7 @@ impl ParsingError {
 	/// Basic usage
 	/// ```
 	/// # use sprout::prelude::*;
-	/// ParsingError::new("something went wrong!".to_string(), TextPosition::new(2, 3));
+	/// ParsingError::new("something went wrong!".to_string(), TextPosition::new(2, 3, 5));
 	/// ```
 	pub fn new(message: String, pos: TextPosition) -> Self {
 		ParsingError { message, pos }
