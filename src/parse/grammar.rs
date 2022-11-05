@@ -96,7 +96,32 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTBuilder<PN> {
 	}
 }
 
-// TODO documentation
+/// Settings for the parsing process.
+/// 
+/// It currently has the following fields:
+/// 
+/// | Name         | Default | Description                                                                                                                                        |
+/// |--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+/// | `whitespace` | `None`  | A token that should be ignored as meaningless whitespace when encountered, but not expected. You can still use this token in your grammar as well. |
+/// 
+/// While you can create parsing settings directly, you will usually obtain them by calling
+/// `configure()` on a [`Grammar`].
+/// 
+/// You can set the fields of the struct directly, but the most comfortable way is to use the setter method with the same name
+/// field you want to set.
+/// 
+/// # Examples
+/// Configuring a whitespace token
+/// ```
+/// # use sprout::prelude::*;
+/// use sprout::parse::ParsingSettings;
+/// #
+/// # #[derive(Clone, Copy)]
+/// # enum Token { Whitespace }
+/// 
+/// let mut settings = ParsingSettings::new();
+/// settings.whitespace(Token::Whitespace);
+/// ```
 #[derive(Debug)]
 pub struct ParsingSettings<TN: Copy> {
 	pub whitespace: Option<TN>
@@ -108,13 +133,21 @@ impl<TN: Copy> ParsingSettings<TN> {
 		ParsingSettings { whitespace: None }
 	}
 
+	/// A token that should be ignored as meaningless whitespace. The default value is `None`.
+	/// 
+	/// You can still use this token in your grammar; if you define it as part of a procedure,
+	/// it will still be matched just like any other token, but if it is encountered in the text
+	/// even though it wasn't expected, it will simply be ignored.
+	/// 
+	/// This setting allows you to specify which characters your parser considers to be meaningless in most
+	/// contexts, so that you don't have to litter optional whitespace tokens all over your procedure definitions.
 	pub fn whitespace(&mut self, whitespace: TN) -> &mut Self {
 		self.whitespace = Some(whitespace);
 		self
 	}
 }
 
-/// TODO: documentation
+/// A context object that is passed to grammar item matchers during the parsing process.
 pub struct ParsingContext<'a, PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	grammar: &'a Grammar<PN, TN>,
 	settings: &'a ParsingSettings<TN>
@@ -272,7 +305,8 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		Grammar { procs, settings: ParsingSettings::new() }
 	}
 
-	/// TODO: documentation
+	/// Get the [`ParsingSettings`] for this `Grammar`. See the [`ParsingSettings`] documentation for more
+	/// info.
 	pub fn configure(&mut self) -> &mut ParsingSettings<TN> {
 		&mut self.settings
 	}
