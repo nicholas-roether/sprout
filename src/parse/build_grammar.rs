@@ -197,6 +197,8 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	}
 }
 
+/// Internal implementation of [`grammar`]. Potentially useful because it
+/// uses an external [`GrammarBuilder`] that is passed as a parameter. 
 #[macro_export]
 macro_rules! build_grammar {
 	((proc, $ret:tt) $builder:expr; [$($items:tt)+], $($tail:tt)+) => {
