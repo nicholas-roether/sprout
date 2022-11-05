@@ -204,15 +204,15 @@ impl<N: Copy> Alphabet<N> {
 macro_rules! alphabet {
     ($($name:expr=>$match_expr:expr);*$(;)?) => {
         {
-            let mut alphabet = $crate::tokenize::Alphabet::new();
+            let mut __alphabet = $crate::tokenize::Alphabet::new();
             $({
-                let res = alphabet.register_token($name, $match_expr);
+                let res = __alphabet.register_token($name, $match_expr);
                 if let Err(err) = res {
                     panic!("{}", err)
                 }
                 res.unwrap()
             });*;
-            alphabet
+            __alphabet
         }
     };
 }

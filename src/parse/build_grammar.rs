@@ -443,9 +443,9 @@ macro_rules! build_grammar {
 macro_rules! grammar {
 	($($tokens:tt)*) => {
 		{
-			let mut builder = $crate::parse::GrammarBuilder::new();
-			$crate::build_grammar!(builder; $($tokens)*);
-			builder.complete()
+			let mut __builder = $crate::parse::GrammarBuilder::new();
+			$crate::build_grammar!(__builder; $($tokens)*);
+			__builder.complete()
 		}
 	};
 }
