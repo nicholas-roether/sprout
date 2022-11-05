@@ -86,12 +86,13 @@ pub struct GrammarBuilder<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: 
 	procs: Vec<GrammarProc<PN, TN>>,
 	current_proc: Option<(PN, MatchGraphBuilder<GrammarItemName<PN, TN>>)>,
 	primitive_procs: Vec<PN>,
+	defined_procs: Vec<PN>,
 	state_stack: Vec<GrammarBuilderState>
 }
 
 impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> GrammarBuilder<PN, TN> {
 	pub fn new() -> Self {
-		GrammarBuilder { procs: vec![], current_proc: None, state_stack: vec![], primitive_procs: vec![] }
+		GrammarBuilder { procs: vec![], current_proc: None, state_stack: vec![], primitive_procs: vec![], defined_procs: vec![] }
 	}
 
 	/// Start a new procedure definition.
@@ -105,7 +106,16 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	pub fn define(&mut self, proc: PN, primitive: bool) {
 		self.complete_proc();
 		if primitive {
-			self.primitive_procs.push(proc);
+			if !self.primitive_procs.contains(&proc) {
+				if self.defined_procs.contains(&proc) {
+					panic!("Ambiguous proc primitivity: {proc:?} is defined as both primitive and non-primitive");
+				}
+				self.primitive_procs.push(proc);
+			}
+		} else {
+			if self.primitive_procs.contains(&proc) {
+				panic!("Ambiguous proc primitivity: {proc:?} is defined as both primitive and non-primitive");
+			}
 		}
 		self.current_proc = Some((proc, MatchGraphBuilder::new()))
 	}
@@ -505,6 +515,15 @@ mod tests {
 		assert!(res.is_err());
 		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	#[should_panic(expected="Ambiguous proc primitivity: 'a' is defined as both primitive and non-primitive")]
+	fn should_panic_when_defining_proc_as_primitive_and_non_primitive() {
+		grammar! {
+			#!'a' => 'x';
+			#'a' => 'x';
+		};
 	}
 
 	#[test]
