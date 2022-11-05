@@ -4,7 +4,7 @@ description = "A rust crate for growing simple, but beautiful AST trees 🌳"
 homepage = "https://github.com/nicholas-roether/sprout"
 repository = "https://github.com/nicholas-roether/sprout"
 readme = "README.md"
-version = "0.2.0+1"
+version = "0.2.1"
 edition = "2021"
 license = "MIT"
 
