@@ -70,7 +70,7 @@ impl<N: fmt::Display> fmt::Display for Token<N> {
 /// via the `tokenize` function.
 /// 
 /// Token definitions are given via a subset of regular expressions, namely one that contains groups (`[abc]`),
-/// ranges (`[a-z]`), and repeats (`*`, `+`, `?`). For more information, see [`TokenMatcher`].
+/// ranges (`[a-z]`), and repeats (`*`, `+`, `?`).
 /// 
 /// The easiest way to create an alphabet is using the [`alphabet`] macro.
 /// 
@@ -122,7 +122,7 @@ impl<N: Copy> Alphabet<N> {
         Alphabet { token_defs: vec![] }
     }
 
-    /// Add a new token definition to this alphabet. `match_expr` is an expression in a subset of regex, see [`TokenMatcher`].
+    /// Add a new token definition to this alphabet. `match_expr` is an expression in a subset of regex.
     /// 
     /// If your use case just involves creating a static alphabet whithout any dynamic changes made to it,
     /// consider using the [`alphabet`] macro instead of this function.
@@ -180,7 +180,7 @@ impl<N: Copy> Alphabet<N> {
 /// Create an [`Alphabet`] by providing definitions for all token types.
 /// 
 /// Token definitions are given via a subset of regular expressions, namely one that contains groups (`[abc]`),
-/// ranges (`[a-z]`), and repeats (`*`, `+`, `?`). For more information, see [`TokenMatcher`].
+/// ranges (`[a-z]`), and repeats (`*`, `+`, `?`). For more information.
 /// 
 /// # Examples
 /// Create a simple alphabet
