@@ -185,7 +185,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<(), MatchError> {
 		if sequence.items().is_empty() {
-			return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
+			return Err(MatchError::simple(proc_name.to_string(), sequence.index));
 		}
 		context.data.grammar.compare_proc(
 			proc_name,
@@ -297,12 +297,13 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 #[derive(Debug)]
 pub struct Grammar<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	procs: Vec<GrammarProc<PN, TN>>,
+	primitives: Vec<PN>,
 	settings: ParsingSettings<TN>
 }
 
 impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
-	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
-		Grammar { procs, settings: ParsingSettings::new() }
+	pub fn new(procs: Vec<GrammarProc<PN, TN>>, primitives: Vec<PN>) -> Self {
+		Grammar { procs, settings: ParsingSettings::new(), primitives }
 	}
 
 	/// Get the [`ParsingSettings`] for this `Grammar`. See the [`ParsingSettings`] documentation for more
@@ -366,6 +367,13 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		}
 	}
 
+	/// Returns true when `proc` is a primitive.
+	/// 
+	/// See [`crate::grammar`] for more information.
+	pub fn is_primitive(&self, proc: PN) -> bool {
+		self.primitives.contains(&proc)
+	}
+
 	fn compare_proc(
 		&self,
 		proc: PN,
@@ -373,6 +381,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		acc: &mut ASTBuilder<PN>,
 		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<(), MatchError> {
+		let start_index = tokens.index;
 		let mut error: Option<MatchError> = None;
 		acc.push_proc(proc);
 		for proc in self.procs.iter().filter(|p| p.name == proc) {
@@ -384,6 +393,10 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			acc.pop_proc();
 				return Ok(())
 			}
+		}
+
+		if self.is_primitive(proc) {
+			return Err(MatchError::simple(proc.to_string(), start_index));
 		}
 
 		Err(error.expect("Unexpected error occurred during parsing"))

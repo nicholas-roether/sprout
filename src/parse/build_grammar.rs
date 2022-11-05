@@ -47,8 +47,9 @@ enum GrammarBuilderState {
 /// 
 /// let mut grammar_builder = GrammarBuilder::new();
 /// 
-/// // Start a procedure definition
-/// grammar_builder.define(Sentence);
+/// // Start a primtive procedure definition
+/// // Primitive procedures will not reference their composite parts in error messages
+/// grammar_builder.define(Sentence, true);
 /// 
 /// // Add a token to the current procedure
 /// grammar_builder.token(Word);
@@ -64,8 +65,8 @@ enum GrammarBuilderState {
 /// 
 /// grammar_builder.token(Dot);
 /// 
-/// // Start the next procedure definition
-/// grammar_builder.define(Text);
+/// // Start the next (non-primitive) procedure definition
+/// grammar_builder.define(Text, false);
 /// 
 /// // Add a reference to another procedure to the current procedure
 /// grammar_builder.proc(Sentence);
@@ -84,19 +85,28 @@ enum GrammarBuilderState {
 pub struct GrammarBuilder<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> {
 	procs: Vec<GrammarProc<PN, TN>>,
 	current_proc: Option<(PN, MatchGraphBuilder<GrammarItemName<PN, TN>>)>,
+	primitive_procs: Vec<PN>,
 	state_stack: Vec<GrammarBuilderState>
 }
 
 impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> GrammarBuilder<PN, TN> {
 	pub fn new() -> Self {
-		GrammarBuilder { procs: vec![], current_proc: None, state_stack: vec![] }
+		GrammarBuilder { procs: vec![], current_proc: None, state_stack: vec![], primitive_procs: vec![] }
 	}
 
 	/// Start a new procedure definition.
 	/// 
+	/// Setting `primitive` to true will make the parser consider this proc a
+	/// "basic building block" of the language you are parsing, which means that
+	/// error messages will always refer to this proc by name rather than it's constituent
+	/// components.
+	/// 
 	/// Will panic if there are any unfinished repeats, optionals, or choices.
-	pub fn define(&mut self, proc: PN) {
+	pub fn define(&mut self, proc: PN, primitive: bool) {
 		self.complete_proc();
+		if primitive {
+			self.primitive_procs.push(proc);
+		}
 		self.current_proc = Some((proc, MatchGraphBuilder::new()))
 	}
 	
@@ -104,14 +114,14 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	/// 
 	/// Will panic if no procedure definition was started yet.
 	pub fn token(&mut self, token: TN) {
-		self.get_proc_builder().append(GrammarItemName::Terminal(token), None);
+		self.get_proc_builder().append(GrammarItemName::Terminal(token));
 	}
 
 	/// Add a procedure to the current procedure definition.
 	/// 
 	/// Will panic if no procedure definition was started yet.
 	pub fn proc(&mut self, proc: PN) {
-		self.get_proc_builder().append(GrammarItemName::NonTerminal(proc), None);
+		self.get_proc_builder().append(GrammarItemName::NonTerminal(proc));
 	}
 
 	/// Start a repeat block with a minimum of `min` repeats.
@@ -172,7 +182,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	/// Complete the grammar build and extract the constructed [`Grammar`].
 	pub fn complete(mut self) -> Grammar<PN, TN> {
 		self.complete_proc();
-		Grammar::new(self.procs)
+		Grammar::new(self.procs, self.primitive_procs)
 	}
 
 	fn get_proc_builder(&mut self) -> &mut MatchGraphBuilder<GrammarItemName<PN, TN>> {
@@ -329,8 +339,14 @@ macro_rules! build_grammar {
 	};
 
 	((grammar) $builder:expr;) => {};
+	// #!x => ...
+	((grammar) $builder:expr; #!$proc_name:expr => $($tail:tt)+) => {
+		$builder.define($proc_name, true);
+		$crate::build_grammar!((proc, grammar) $builder; $($tail)+);
+	};
+	// #x => ...
 	((grammar) $builder:expr; #$proc_name:expr => $($tail:tt)+) => {
-		$builder.define($proc_name);
+		$builder.define($proc_name, false);
 		$crate::build_grammar!((proc, grammar) $builder; $($tail)+);
 	};
 
@@ -358,11 +374,15 @@ macro_rules! build_grammar {
 /// #
 /// grammar! {
 /// 	#Proc::Name => Token::Name, #Proc::Name /*, ... */;
-/// 	#Proc::Name => Token::Name /*, ... */;
+/// 	#!Proc::Name => Token::Name /*, ... */;
 /// 	//...
 /// };
 /// ```
-/// where procedure names are always prefixed with a `#`.
+/// where procedure names are always prefixed with a `#`. 
+/// 
+/// Putting the `#!` prefix on a procedure definition means that that procedure is _primitive_.
+/// _Primitive_ procedures are considered to be the **simple building blocks** of your language,
+/// which means that error messages will refer to them by their name rather than their composite parts.
 /// 
 /// Beyond that, for more complex structures, you can use these special expressions in the procedure definitions:
 /// 
@@ -439,6 +459,52 @@ mod tests {
 			]),
 			Ok(tr(ASTNode::new('a', "123456".to_string(), TextPosition::new(1, 0, 0))))
 		);
+	}
+
+	#[test]
+	fn should_handle_non_primitive_proc_errors() {
+		let grammar = grammar! {
+			#'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('z', "123".to_string(), TextPosition::new(1, 5, 5)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected y");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 5);
+	}
+
+	#[test]
+	fn should_handle_primitive_proc_errors() {
+		let grammar = grammar! {
+			#!'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	fn should_handle_nested_primitive_proc_errors() {
+		let grammar = grammar! {
+			#'b' => #'a';
+			#!'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('b', &[
+			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
 	#[test]

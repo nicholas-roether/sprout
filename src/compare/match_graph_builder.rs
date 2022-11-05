@@ -1,6 +1,6 @@
 use petgraph::graph::{DiGraph, NodeIndex};
 
-use super::{Matcher, MatchNodeData, MatchGraph};
+use super::{Matcher, MatchGraph};
 
 
 #[derive(Debug, PartialEq, Eq)]
@@ -34,7 +34,7 @@ fn move_all_connections<N, E: Clone>(graph: &mut DiGraph<N, E>, from: NodeIndex,
 
 #[derive(Debug)]
 pub struct MatchGraphBuilder<M: Matcher> {
-	graph: DiGraph<MatchNodeData<M>, u32>,
+	graph: DiGraph<Option<M>, u32>,
 	root: NodeIndex,
 	return_stack: Vec<NodeIndex>,
 	end_buffer: Vec<NodeIndex>,
@@ -44,12 +44,12 @@ pub struct MatchGraphBuilder<M: Matcher> {
 impl<M: Matcher> MatchGraphBuilder<M> {
 	pub fn new() -> Self {
 		let mut graph = DiGraph::new();
-		let root = graph.add_node(MatchNodeData::empty());
+		let root = graph.add_node(None);
 		MatchGraphBuilder { graph, root, return_stack: vec![], end_buffer: vec![], current_node: root }
 	}
 
-	pub fn append(&mut self, matcher: M, name: Option<String>) {
-		let appended_node = self.graph.add_node(MatchNodeData::new(Some(matcher), name));
+	pub fn append(&mut self, matcher: M) {
+		let appended_node = self.graph.add_node(Some(matcher));
 		self.connect(self.current_node, appended_node);
 		self.current_node = appended_node;
 	}
@@ -117,7 +117,7 @@ impl<M: Matcher> MatchGraphBuilder<M> {
 	}
 
 	fn add_buffer_node(&mut self) -> NodeIndex {
-		self.graph.add_node(MatchNodeData::empty())
+		self.graph.add_node(None)
 	}
 }
 
@@ -164,8 +164,8 @@ mod tests {
 	#[test]
 	fn append_works() {
 		let mut builder = MatchGraphBuilder::<u32>::new();
-		builder.append(6, None);
-		builder.append(9, None);
+		builder.append(6);
+		builder.append(9);
 		let graph = builder.complete();
 
 		let mut acc: Vec<u32> = vec![];
@@ -179,10 +179,10 @@ mod tests {
 	#[test]
 	fn push_get_and_pop_return_works() {
 		let mut builder = MatchGraphBuilder::<u32>::new();
-		builder.append(420, None);
+		builder.append(420);
 		builder.push_return();
-		builder.append(6, None);
-		builder.append(6, None);
+		builder.append(6);
+		builder.append(6);
 		builder.push_return();
 
 		assert_eq!(builder.get_return(), NodeIndex::new(3));
@@ -195,9 +195,9 @@ mod tests {
 	fn choice_construction_works() {
 		let mut builder = MatchGraphBuilder::<u32>::new();
 		builder.push_return();
-		builder.append(420, None);
+		builder.append(420);
 		builder.end_choice_path();
-		builder.append(69, None);
+		builder.append(69);
 		builder.end_choice_path();
 		builder.pop_choice();
 		let graph = builder.complete();
@@ -217,7 +217,7 @@ mod tests {
 	fn repeat_construction_works() {
 		let mut builder = MatchGraphBuilder::<u32>::new();
 		builder.push_return();
-		builder.append(420, None);
+		builder.append(420);
 		builder.pop_repeat();
 		let graph = builder.complete();
 
@@ -238,7 +238,7 @@ mod tests {
 	fn optional_construction_works() {
 		let mut builder = MatchGraphBuilder::<u32>::new();
 		builder.push_return();
-		builder.append(420, None);
+		builder.append(420);
 		builder.pop_optional();
 		let graph = builder.complete();
 
@@ -260,7 +260,7 @@ mod tests {
 	fn duplicate_works() {
 		let mut builder = MatchGraphBuilder::<u32>::new();
 		builder.push_return();
-		builder.append(420, None);
+		builder.append(420);
 		builder.duplicate(2);
 		builder.pop_return();
 		let graph = builder.complete();

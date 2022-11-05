@@ -183,7 +183,7 @@ impl TokenMatcher {
                                 builder.pop_return();
                             }
                             builder.push_return();
-                            builder.append(CharMatcher::Exact(*char), None);
+                            builder.append(CharMatcher::Exact(*char));
                             has_expression = true;
                         }
                     }
@@ -196,7 +196,7 @@ impl TokenMatcher {
                         }
                         (']', false) => {
                             if let Some(b_char) = buffered_char {
-                                builder.append(CharMatcher::Exact(b_char), None);
+                                builder.append(CharMatcher::Exact(b_char));
                                 builder.end_choice_path();
                             }
                             
@@ -206,7 +206,7 @@ impl TokenMatcher {
                         }
                         (_, _) => {
                             if let Some(b_char) = buffered_char {
-                                builder.append(CharMatcher::Exact(b_char), None);
+                                builder.append(CharMatcher::Exact(b_char));
                                 builder.end_choice_path();
                             }
                             buffered_char = Some(*char);
@@ -219,7 +219,7 @@ impl TokenMatcher {
                             return Err(ExprParseError::new(*char, index, "Unexpected end of choice after '-'".to_string().into()));
                         }
                         (_, _) => {
-                            builder.append(CharMatcher::Range(buffered_char.expect("No start of range found"), *char), None);
+                            builder.append(CharMatcher::Range(buffered_char.expect("No start of range found"), *char));
                             buffered_char = None;
                             builder.end_choice_path();
                             mode = ExprParseState::Choice;

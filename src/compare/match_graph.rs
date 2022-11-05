@@ -53,30 +53,14 @@ pub trait Matcher {
 	fn compare<'a>(&self, sequence: &mut SequenceView<Self::Item>, accumulator: &mut Self::Accumulator, context: &MatcherContext<Self::ContextData<'a>>) -> Result<(), MatchError>;
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct MatchNodeData<M: Matcher> {
-	matcher: Option<M>,
-	name: Option<String>
-}
-
-impl<M: Matcher> MatchNodeData<M> {
-	pub fn new(matcher: Option<M>, name: Option<String>) -> Self {
-		MatchNodeData { matcher, name }
-	}
-
-	pub fn empty() -> Self {
-		MatchNodeData { matcher: None, name: None }
-	}
-}
-
 #[derive(Debug)]
 pub struct MatchGraph<M: Matcher> {
-	graph: DiGraph<MatchNodeData<M>, u32>,
+	graph: DiGraph<Option<M>, u32>,
 	root: NodeIndex
 }
 
 impl<M: Matcher> MatchGraph<M> {
-	pub fn new(graph: DiGraph<MatchNodeData<M>, u32>, root: NodeIndex) -> Self {
+	pub fn new(graph: DiGraph<Option<M>, u32>, root: NodeIndex) -> Self {
 		MatchGraph { graph, root }
 	}
 
@@ -93,7 +77,7 @@ impl<M: Matcher> MatchGraph<M> {
 	) -> Result<(), MatchError> {
 		let node = &self.graph[index];
 
-		if let Some(matcher) = &node.matcher {
+		if let Some(matcher) = &node {
 			matcher.compare(sequence, accumulator, context)?;
 		}
 
@@ -107,12 +91,7 @@ impl<M: Matcher> MatchGraph<M> {
 			let mut acc_clone = accumulator.clone();
 			match self.compare_node(edge.target(), &mut seq_clone, &mut acc_clone, context) {
 				Err(error) => {
-					errors.push(
-						match &node.name {
-							Some(name) => MatchError::simple(name.clone(), error.index),
-							None => MatchError::new(error.expectations, error.depth + 1, error.index)
-						}
-					);
+					errors.push(MatchError::new(error.expectations, error.depth + 1, error.index));
 					success = false;
 				},
 				Ok(_) => {
@@ -199,8 +178,8 @@ mod tests {
 
 	#[test]
 	fn match_graph_with_single_matcher_node_should_work() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let node = di_graph.add_node(Some('x'));
 		let graph = MatchGraph::new(di_graph, node);
 
 		let mut acc = String::new();
@@ -213,8 +192,8 @@ mod tests {
 
 	#[test]
 	fn match_graph_with_single_matcher_node_should_work_in_exhaustive_mode() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let node = di_graph.add_node(Some('x'));
 		let graph = MatchGraph::new(di_graph, node);
 
 		let mut acc = String::new();
@@ -227,9 +206,9 @@ mod tests {
 
 	#[test]
 	fn match_graph_should_ignore_empty_matcher_nodes() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let root = di_graph.add_node(MatchNodeData::empty());
-		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(None);
+		let node = di_graph.add_node(Some('x'));
 		di_graph.add_edge(root, node, 2);
 		let graph = MatchGraph::new(di_graph, root);
 
@@ -242,29 +221,11 @@ mod tests {
 	}
 
 	#[test]
-	fn match_graph_should_handle_named_matcher_nodes() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let root = di_graph.add_node(MatchNodeData::empty());
-		let named_node = di_graph.add_node(MatchNodeData::new(None, Some("Something".to_string())));
-		let node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
-		di_graph.add_edge(root, named_node, 0);
-		di_graph.add_edge(named_node, node, 0);
-		let graph = MatchGraph::new(di_graph, root);
-
-		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'a', 'b']), &mut acc, &MatcherContext::new(&(), false)), Ok(()));
-		assert_eq!(acc, "x".to_string());
-
-		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["Something".to_string()], 1, 0)));
-	}
-
-	#[test]
 	fn match_graph_should_handle_splits() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let root = di_graph.add_node(MatchNodeData::empty());
-		let opt1_node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
-		let opt2_node = di_graph.add_node(MatchNodeData::new(Some('y'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(None);
+		let opt1_node = di_graph.add_node(Some('x'));
+		let opt2_node = di_graph.add_node(Some('y'));
 		di_graph.add_edge(root, opt1_node, 0);
 		di_graph.add_edge(root, opt2_node, 1);
 		let graph = MatchGraph::new(di_graph, root);
@@ -283,10 +244,10 @@ mod tests {
 
 	#[test]
 	fn match_graph_should_handle_splits_in_exhaustive_mode() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let root = di_graph.add_node(MatchNodeData::empty());
-		let opt1_node = di_graph.add_node(MatchNodeData::new(Some('x'), None));
-		let opt2_node = di_graph.add_node(MatchNodeData::new(Some('y'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(None);
+		let opt1_node = di_graph.add_node(Some('x'));
+		let opt2_node = di_graph.add_node(Some('y'));
 		di_graph.add_edge(root, opt1_node, 0);
 		di_graph.add_edge(root, opt2_node, 1);
 		let graph = MatchGraph::new(di_graph, root);
@@ -305,12 +266,12 @@ mod tests {
 
 	#[test]
 	fn match_graph_should_handle_splits_with_partial_match() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let root = di_graph.add_node(MatchNodeData::empty());
-		let opt1_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
-		let opt1_node2 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
-		let opt2_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
-		let opt2_node2 = di_graph.add_node(MatchNodeData::new(Some('y'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(None);
+		let opt1_node1 = di_graph.add_node(Some('a'));
+		let opt1_node2 = di_graph.add_node(Some('x'));
+		let opt2_node1 = di_graph.add_node(Some('a'));
+		let opt2_node2 = di_graph.add_node(Some('y'));
 		di_graph.add_edge(root, opt1_node1, 0);
 		di_graph.add_edge(opt1_node1, opt1_node2, 0);
 		di_graph.add_edge(root, opt2_node1, 1);
@@ -331,14 +292,14 @@ mod tests {
 
 	#[test]
 	fn match_graph_should_handle_splits_with_partial_matches_of_different_depths() {
-		let mut di_graph: DiGraph<MatchNodeData<char>, u32> = DiGraph::new();
-		let root = di_graph.add_node(MatchNodeData::empty());
-		let opt1_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
-		let opt1_node2 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
-		let opt1_node3 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
-		let opt2_node1 = di_graph.add_node(MatchNodeData::new(Some('a'), None));
-		let opt2_node2 = di_graph.add_node(MatchNodeData::new(Some('y'), None));
-		let opt2_node3 = di_graph.add_node(MatchNodeData::new(Some('x'), None));
+		let mut di_graph: DiGraph<Option<char>, u32> = DiGraph::new();
+		let root = di_graph.add_node(None);
+		let opt1_node1 = di_graph.add_node(Some('a'));
+		let opt1_node2 = di_graph.add_node(Some('x'));
+		let opt1_node3 = di_graph.add_node(Some('x'));
+		let opt2_node1 = di_graph.add_node(Some('a'));
+		let opt2_node2 = di_graph.add_node(Some('y'));
+		let opt2_node3 = di_graph.add_node(Some('x'));
 		di_graph.add_edge(root, opt1_node1, 0);
 		di_graph.add_edge(opt1_node1, opt1_node2, 0);
 		di_graph.add_edge(opt1_node2, opt1_node3, 0);

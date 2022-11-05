@@ -95,14 +95,20 @@ use Proc::*;
 
 let grammar = grammar! {
    #TwoOrThreeWords => Word, Space, Word, (Space, Word)?;
-   #WordOrNumber => [Word; Number];
+   #!WordOrNumber => [Word; Number];
    #Sequence => ([#TwoOrThreeWords; #WordOrNumber]){Space}+,
 };
 ```
 
 As you can see in this example, within a grammar definition, names of procedures are always prefixed with a `#`.
-Names of tokens are simply left as-is. Sequences of tokens/procedures are comma-separated, and you can use the following
-special syntax for more complex patterns:
+
+The `#!` prefix on a procedure definition means that that procedure is _primitive_. _Primitive_ procedures are 
+considered to be the **simple building blocks** of your language, which means that error messages will refer to 
+them by their name rather than their composite parts.
+
+Names of tokens are simply left as-is; sequences of tokens/procedures are comma-separated. 
+
+You can use the following special syntax inside procedure definitions for more complex patterns:
 
 | Syntax            | Description                                         |
 |-------------------|-----------------------------------------------------|
