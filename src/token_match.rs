@@ -11,7 +11,7 @@ enum CharMatcher {
 impl Matcher for CharMatcher {
     type Item = char;
     type Accumulator = String;
-    type ContextData = ();
+    type ContextData<'a> = ();
 
     fn compare(
         &self,

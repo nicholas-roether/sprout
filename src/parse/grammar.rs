@@ -96,38 +96,112 @@ impl<PN: Clone + fmt::Debug + Copy + PartialEq> ASTBuilder<PN> {
 	}
 }
 
+// TODO documentation
+#[derive(Debug)]
+pub struct ParsingSettings<TN: Copy> {
+	pub whitespace: Option<TN>
+}
+
+
+impl<TN: Copy> ParsingSettings<TN> {
+	pub fn new() -> Self {
+		ParsingSettings { whitespace: None }
+	}
+
+	pub fn whitespace(&mut self, whitespace: TN) -> &mut Self {
+		self.whitespace = Some(whitespace);
+		self
+	}
+}
+
+/// TODO: documentation
+pub struct ParsingContext<'a, PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
+	grammar: &'a Grammar<PN, TN>,
+	settings: &'a ParsingSettings<TN>
+}
+
+impl<'a, PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> ParsingContext<'a, PN, TN> {
+	fn new(grammar: &'a Grammar<PN, TN>) -> Self {
+		ParsingContext { grammar, settings: &grammar.settings }
+	}
+}
+
+impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarItemName<PN, TN> {
+	fn compare_as_token(
+		token_name: TN,
+		sequence: &mut SequenceView<Token<TN>>,
+		accumulator: &mut ASTBuilder<PN>,
+	) -> Result<(), MatchError> {
+		let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
+		if sequence.items().is_empty() {
+			return error;
+		}
+		let next_token = sequence.items().first().unwrap();
+		if next_token.name != token_name {
+			return error;
+		}
+		sequence.index += 1;
+		accumulator.push_token(next_token.clone());
+		Ok(())
+	}
+
+	fn compare_as_proc(
+		proc_name: PN,
+		sequence: &mut SequenceView<Token<TN>>,
+		accumulator: &mut ASTBuilder<PN>,
+		context: &MatcherContext<ParsingContext<PN, TN>>
+	) -> Result<(), MatchError> {
+		if sequence.items().is_empty() {
+			return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
+		}
+		context.data.grammar.compare_proc(
+			proc_name,
+			sequence,
+			accumulator,
+			&MatcherContext::new(context.data, false)
+		)?;
+		Ok(())
+	}
+
+	fn next_is_whitespace(sequence: &mut SequenceView<Token<TN>>, context: &MatcherContext<ParsingContext<PN, TN>>) -> bool {
+		let Some(whitespace_token) = context.data.settings.whitespace else {
+			return false;
+		};
+		if sequence.is_empty() {
+			return false;
+		}
+		if sequence.items().first().unwrap().name == whitespace_token {
+			return true;
+		}
+		false
+	}
+}
+
 impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
 	type Item = Token<TN>;
 	type Accumulator = ASTBuilder<PN>;
-	type ContextData = Grammar<PN, TN>;
+	type ContextData<'a> = ParsingContext<'a, PN, TN> where Self: 'a;
 
 	fn compare(
 		&self, sequence: &mut SequenceView<Token<TN>>,
 		accumulator: &mut ASTBuilder<PN>,
-		context: &MatcherContext<Grammar<PN, TN>>
+		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<(), crate::compare::MatchError> {
-		match self {
-			GrammarItemName::Terminal(token_name) => {
-				let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
-				if sequence.items().is_empty() {
-					return error;
-				}
-				let next_token = sequence.items().first().unwrap();
-				if next_token.name != *token_name {
-					return error;
-				}
-				sequence.index += 1;
-				accumulator.push_token(next_token.clone());
-				Ok(())
-			},
-			GrammarItemName::NonTerminal(proc_name) => {
-				if sequence.items().is_empty() {
-					return Err(MatchError::simple(format!("{proc_name}"), sequence.index));
-				}
-				context.data.compare_proc(*proc_name, sequence, accumulator, false)?;
-				Ok(())
+		loop {
+			let result = match self {
+				GrammarItemName::Terminal(token_name) => Self::compare_as_token(*token_name, sequence, accumulator),
+				GrammarItemName::NonTerminal(proc_name) => Self::compare_as_proc(*proc_name, sequence, accumulator, context)
+			};
+			if result.is_ok() {
+				break;
 			}
+			if Self::next_is_whitespace(sequence, context) {
+				sequence.index += 1;
+				continue;
+			}
+			return result;
 		}
+		Ok(())
 	}
 }
 
@@ -189,12 +263,18 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 /// ```
 #[derive(Debug)]
 pub struct Grammar<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
-	procs: Vec<GrammarProc<PN, TN>>
+	procs: Vec<GrammarProc<PN, TN>>,
+	settings: ParsingSettings<TN>
 }
 
 impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
 	pub fn new(procs: Vec<GrammarProc<PN, TN>>) -> Self {
-		Grammar { procs }
+		Grammar { procs, settings: ParsingSettings::new() }
+	}
+
+	/// TODO: documentation
+	pub fn configure(&mut self) -> &mut ParsingSettings<TN> {
+		&mut self.settings
 	}
 	
 	/// Parse a slice of [`Token`]s into an [`AST`] according to some procedure `proc` defined in this grammar.
@@ -232,7 +312,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	pub fn parse(&self, proc: PN, tokens: &[Token<TN>]) -> Result<AST<PN>, ParsingError> {
 		let mut tree_builder: ASTBuilder<PN> = ASTBuilder::new();
 		let mut seq_view = SequenceView::new(tokens);
-		match self.compare_proc(proc, &mut seq_view, &mut tree_builder, true) {
+		match self.compare_proc(proc, &mut seq_view, &mut tree_builder, &MatcherContext::new(&ParsingContext::new(&self), true)) {
 			Ok(_) => Ok(tree_builder.result.expect("Unexpected error occurred during compilation")),
 			Err(error) => {
 				let position = if error.index == tokens.len() {
@@ -257,12 +337,12 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		proc: PN,
 		tokens: &mut SequenceView<Token<TN>>,
 		acc: &mut ASTBuilder<PN>,
-		exhaustive: bool,
+		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<(), MatchError> {
 		let mut error: Option<MatchError> = None;
 		acc.push_proc(proc);
 		for proc in self.procs.iter().filter(|p| p.name == proc) {
-			if let Err(new_err) = proc.graph.compare(tokens, acc, &MatcherContext::new(&self, exhaustive)) {
+			if let Err(new_err) = proc.graph.compare(tokens, acc, context) {
 			if error.is_none() || new_err.depth > error.as_ref().unwrap().depth {
 				error = Some(new_err);
 			}
@@ -339,6 +419,44 @@ mod tests {
 			#'a' => 'x', #'b', 'z';
 			#'b' => 'y';
 		);
+
+		let result = grammar.parse('a', &[
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('y', String::from("456"), TextPosition::new(4, 20, 69)),
+			Token::new('z', String::from("789"), TextPosition::new(1, 2, 3)),
+		]);
+		assert_eq!(result, Ok(
+			tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(6, 9, 420)))
+				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20, 69)))
+		));
+
+		let result2 = grammar.parse('a', &[
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
+		]);
+		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20, 69))));
+	}
+
+	#[test]
+	fn configuring_whitespace_works() {
+		let mut grammar = grammar!(
+			#'a' => 'x', #'b', 'z';
+			#'b' => 'y';
+		);
+
+		grammar.configure().whitespace(' ');
+
+		let result = grammar.parse('a', &[
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new(' ', String::from("   "), TextPosition::new(6, 9, 421)),
+			Token::new('y', String::from("456"), TextPosition::new(4, 20, 69)),
+			Token::new(' ', String::from("    "), TextPosition::new(4, 20, 70)),
+			Token::new('z', String::from("789"), TextPosition::new(1, 2, 3)),
+		]);
+		assert_eq!(result, Ok(
+			tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(6, 9, 420)))
+				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20, 69)))
+		));
 
 		let result = grammar.parse('a', &[
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),

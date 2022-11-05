@@ -48,9 +48,9 @@ impl<'a, D> MatcherContext<'a, D> {
 pub trait Matcher {
 	type Item;
 	type Accumulator: Clone;
-	type ContextData;
+	type ContextData<'a> where Self: 'a;
 
-	fn compare(&self, sequence: &mut SequenceView<Self::Item>, accumulator: &mut Self::Accumulator, context: &MatcherContext<Self::ContextData>) -> Result<(), MatchError>;
+	fn compare<'a>(&self, sequence: &mut SequenceView<Self::Item>, accumulator: &mut Self::Accumulator, context: &MatcherContext<Self::ContextData<'a>>) -> Result<(), MatchError>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -80,16 +80,16 @@ impl<M: Matcher> MatchGraph<M> {
 		MatchGraph { graph, root }
 	}
 
-	pub fn compare(&self, sequence_view: &mut SequenceView<M::Item>, accumulator: &mut M::Accumulator, context: &MatcherContext<M::ContextData>) -> Result<(), MatchError> {
+	pub fn compare<'a>(&self, sequence_view: &mut SequenceView<M::Item>, accumulator: &mut M::Accumulator, context: &MatcherContext<M::ContextData<'a>>) -> Result<(), MatchError> {
 		self.compare_node(self.root, sequence_view, accumulator, context)
 	}
 
-	fn compare_node(
+	fn compare_node<'a>(
 		&self,
 		index: NodeIndex,
 		sequence: &mut SequenceView<M::Item>,
 		accumulator: &mut M::Accumulator,
-		context: &MatcherContext<M::ContextData>
+		context: &MatcherContext<M::ContextData<'a>>
 	) -> Result<(), MatchError> {
 		let node = &self.graph[index];
 
@@ -160,7 +160,7 @@ mod tests {
 	impl Matcher for char {
 		type Item = char;
 		type Accumulator = String;
-		type ContextData = ();
+		type ContextData<'a> = ();
 
 		fn compare(&self, sequence: &mut SequenceView<Self::Item>, accumulator: &mut Self::Accumulator, _context: &MatcherContext<()>) -> Result<(), MatchError> {
 			if sequence.items().is_empty() || sequence.items().first().unwrap() != self {

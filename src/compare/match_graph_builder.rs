@@ -149,7 +149,7 @@ mod tests {
 	impl Matcher for u32 {
 	    type Item = u32;
 	    type Accumulator = Vec<u32>;
-		type ContextData = ();
+		type ContextData<'a> = ();
 
 	    fn compare(&self, sequence: &mut SequenceView<u32>, accumulator: &mut Vec<u32>, _context: &MatcherContext<()>) -> Result<(), MatchError> {
 	        if sequence.items().is_empty() || sequence.items().first().unwrap() != self {
