@@ -208,7 +208,7 @@ macro_rules! build_grammar {
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
 	((proc, $ret:tt) $builder:expr; [$($items:tt)+] $(; $($tail:tt)*)?) => {
-		$builder.start_repeat(0);
+		$builder.start_choice();
 		$crate::build_grammar!((choice) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
@@ -514,6 +514,13 @@ mod tests {
 		assert!(
 			grammar.parse('a', &[
 				Token::new('z', "123".to_string(), TextPosition::new(1, 0, 0)),
+			]).is_err()
+		);
+
+		assert!(
+			grammar.parse('a', &[
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
 			]).is_err()
 		);
 	}
