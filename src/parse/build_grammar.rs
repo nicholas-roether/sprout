@@ -201,66 +201,118 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 /// uses an external [`GrammarBuilder`] that is passed as a parameter. 
 #[macro_export]
 macro_rules! build_grammar {
+	// [...], ...
 	((proc, $ret:tt) $builder:expr; [$($items:tt)+], $($tail:tt)+) => {
 		$builder.start_choice();
 		$crate::build_grammar!((choice) $builder; $($items)+);
 		$builder.end();
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
+	// [...];
 	((proc, $ret:tt) $builder:expr; [$($items:tt)+] $(; $($tail:tt)*)?) => {
 		$builder.start_repeat(0);
 		$crate::build_grammar!((choice) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
 	};
+	// (...){...}*, ...
+	((proc, $ret:tt) $builder:expr; ($($items:tt)+){$($delim:tt)+}*, $($tail:tt)+) => {
+		$builder.start_optional();
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.start_repeat(0);
+		$crate::build_grammar!((proc, $ret) $builder; $($delim)+);
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.end();
+		$builder.end();
+		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
+	};
+	// (...){...}*;
+	((proc, $ret:tt) $builder:expr; ($($items:tt)+){$($delim:tt)+}* $(; $($tail:tt)*)?) => {
+		$builder.start_optional();
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.start_repeat(0);
+		$crate::build_grammar!((proc, $ret) $builder; $($delim)+);
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.end();
+		$builder.end();
+		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
+	};
+	// (...)*, ...
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+)*, $($tail:tt)+) => {
 		$builder.start_repeat(0);
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
+	// (...)*;
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+)* $(; $($tail:tt)*)?) => {
 		$builder.start_repeat(0);
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
 	};
+	// (...){...}+, ...
+	((proc, $ret:tt) $builder:expr; ($($items:tt)+){$($delim:tt)+}+, $($tail:tt)+) => {
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.start_repeat(0);
+		$crate::build_grammar!((proc, $ret) $builder; $($delim)+);
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.end();
+		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
+	};
+	// (...){...}+;
+	((proc, $ret:tt) $builder:expr; ($($items:tt)+){$($delim:tt)+}+ $(; $($tail:tt)*)?) => {
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.start_repeat(0);
+		$crate::build_grammar!((proc, $ret) $builder; $($delim)+);
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.end();
+		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
+	};
+	// (...)+, ...
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+)+, $($tail:tt)+) => {
 		$builder.start_repeat(1);
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
+	// (...)+;
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+)+ $(; $($tail:tt)*)?) => {
 		$builder.start_repeat(1);
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
 	};
+	// (...)?, ...
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+)?, $($tail:tt)+) => {
 		$builder.start_optional();
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
+	// (...)?;
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+)? $(; $($tail:tt)*)?) => {
 		$builder.start_optional();
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
 	};
+	// #x, ...
 	((proc, $ret:tt) $builder:expr; #$proc_name:expr, $($tail:tt)+) => {
 		$builder.proc($proc_name);
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
+	// #x;
 	((proc, $ret:tt) $builder:expr; #$proc_name:expr $(; $($tail:tt)*)?) => {
 		$builder.proc($proc_name);
 		$($crate::build_grammar!(($ret) $builder; $($tail)+);)?
 	};
+	// x, ...
 	((proc, $ret:tt) $builder:expr; $token_name:expr, $($tail:tt)+) => {
 		$builder.token($token_name);
 		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
 	};
+	// x;
 	((proc, $ret:tt) $builder:expr; $token_name:expr $(; $($tail:tt)*)?) => {
 		$builder.token($token_name);
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
@@ -463,6 +515,45 @@ mod tests {
 			grammar.parse('a', &[
 				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
 				Token::new('x', "456".to_string(), TextPosition::new(1, 3, 3)),
+				Token::new('x', "789".to_string(), TextPosition::new(1, 6, 6)),
+			]),
+			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0, 0))))
+		);
+	}
+
+	#[test]
+	fn should_allow_defining_delimited_repeats() {
+		let grammar = grammar! {
+			#'a' => ('x'){' '}*;
+		};
+
+		assert_eq!(
+			grammar.parse('a', &[]),
+			Ok(tr(ASTNode::new('a', "".to_string(), TextPosition::new(1, 0, 0))))
+		);
+
+		assert_eq!(
+			grammar.parse('a', &[
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new(' ', "456".to_string(), TextPosition::new(1, 3, 3)),
+				Token::new('x', "789".to_string(), TextPosition::new(1, 6, 6)),
+			]),
+			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0, 0))))
+		);
+	}
+
+	#[test]
+	fn should_allow_defining_delimited_min_1_repeats() {
+		let grammar = grammar! {
+			#'a' => ('x'){' '}+;
+		};
+
+		assert!(grammar.parse('a', &[]).is_err());
+
+		assert_eq!(
+			grammar.parse('a', &[
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new(' ', "456".to_string(), TextPosition::new(1, 3, 3)),
 				Token::new('x', "789".to_string(), TextPosition::new(1, 6, 6)),
 			]),
 			Ok(tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(1, 0, 0))))
