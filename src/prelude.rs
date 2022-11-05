@@ -5,5 +5,7 @@ pub use crate::{
 	ASTNode,
 	Parser,
 	TextPosition,
-	ParsingError
+	ParsingError,
+	tokenize::Alphabet,
+	parse::Grammar
 };
