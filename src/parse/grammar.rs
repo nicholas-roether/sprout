@@ -474,4 +474,30 @@ mod tests {
 		]);
 		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20, 69))));
 	}
+
+	#[test]
+	fn should_correctly_handle_whitespace_in_proc_def_when_whitespace_is_configured() {
+		let mut grammar = grammar!(
+			#'a' => 'x', ' ', 'y';
+		);
+
+		grammar.configure().whitespace(' ');
+
+		let result = grammar.parse('a', &[
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new(' ', String::from("_"), TextPosition::new(6, 9, 421)),
+			Token::new(' ', String::from("   "), TextPosition::new(6, 9, 422)),
+			Token::new('y', String::from("456"), TextPosition::new(4, 20, 69)),
+		]);
+		assert_eq!(result, Ok(
+			tr(ASTNode::new('a', "123_456".to_string(), TextPosition::new(6, 9, 420)))
+		));
+
+
+		let result2 = grammar.parse('a', &[
+			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
+			Token::new('y', String::from("breaks here"), TextPosition::new(4, 20, 69)),
+		]);
+		assert_eq!(result2, Err(ParsingError::new("Expected  ".to_string(), TextPosition::new(4, 20, 69))));
+	}
 }
