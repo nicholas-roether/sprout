@@ -4,5 +4,6 @@ pub use crate::{
 	AST,
 	ASTNode,
 	Parser,
-	TextPosition
+	TextPosition,
+	ParsingError
 };

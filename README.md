@@ -38,11 +38,10 @@ use std::fmt;
 impl fmt::Display for Token {
    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       match self {
-         Self::Number => write!(f, "number")?,
-         Self::Word => write!(f, "word")?,
-         Self::Space => write!(f, "space")?
+         Self::Number => write!(f, "number"),
+         Self::Word => write!(f, "word"),
+         Self::Space => write!(f, "space")
       }
-      Ok(())
    }
 }
 ```
@@ -80,11 +79,10 @@ And, again, implement `std::fmt::Display`:
 impl fmt::Display for Proc {
    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
       match self {
-         Self::TwoOrThreeWords => write!(f, "two or three words")?,
-         Self::WordOrNumber => write!(f, "word or number")?,
-         Self::Sequence => write!(f, "word/number sequence")?
+         Self::TwoOrThreeWords => write!(f, "two or three words"),
+         Self::WordOrNumber => write!(f, "word or number"),
+         Self::Sequence => write!(f, "word/number sequence")
       }
-      Ok(())
    }
 }
 ```

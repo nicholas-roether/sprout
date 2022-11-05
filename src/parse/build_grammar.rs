@@ -11,6 +11,75 @@ enum GrammarBuilderState {
 	Choice
 }
 
+/// A utility for dynamically building grammars.
+/// 
+/// If you only want to create a static grammar that won't change over the runtime of your program,
+/// consider using the [`grammar`] macro instead.
+/// 
+/// # Examples
+/// Creating a simple grammar
+/// ```
+/// # use sprout::prelude::*;
+/// #
+/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// enum Token {
+/// 	Word,
+/// 	Space,
+/// 	Dot
+/// }
+/// 
+/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// enum Proc {
+/// 	Sentence,
+/// 	Text
+/// }
+/// 
+/// // Though not shown here, both Token an Proc need to implement std::fmt::Display so that
+/// // human-readable error messages can be generated
+/// # use std::fmt;
+/// # impl fmt::Display for Token { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() } }
+/// # impl fmt::Display for Proc { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() } }
+/// 
+/// use sprout::parse::GrammarBuilder;
+/// 
+/// use Token::*;
+/// use Proc::*;
+/// 
+/// let mut grammar_builder = GrammarBuilder::new();
+/// 
+/// // Start a procedure definition
+/// grammar_builder.define(Sentence);
+/// 
+/// // Add a token to the current procedure
+/// grammar_builder.token(Word);
+/// 
+/// // Start a repeat block with a minimum of 0 repetitions
+/// grammar_builder.start_repeat(0);
+/// 
+/// grammar_builder.token(Space);
+/// grammar_builder.token(Word);
+/// 
+/// // end the repeat block
+/// grammar_builder.end();
+/// 
+/// grammar_builder.token(Dot);
+/// 
+/// // Start the next procedure definition
+/// grammar_builder.define(Text);
+/// 
+/// // Add a reference to another procedure to the current procedure
+/// grammar_builder.proc(Sentence);
+/// 
+/// grammar_builder.start_repeat(0);
+/// grammar_builder.token(Space);
+/// grammar_builder.proc(Sentence);
+/// grammar_builder.end();
+/// 
+/// // Extract the finished grammar
+/// let grammar = grammar_builder.complete();
+/// ```
+/// 
+/// See method documentation for more options.
 #[derive(Debug)]
 pub struct GrammarBuilder<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> {
 	procs: Vec<GrammarProc<PN, TN>>,
@@ -23,34 +92,56 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		GrammarBuilder { procs: vec![], current_proc: None, state_stack: vec![] }
 	}
 
+	/// Start a new procedure definition.
+	/// 
+	/// Will panic if there are any unfinished repeats, optionals, or choices.
 	pub fn define(&mut self, proc: PN) {
 		self.complete_proc();
 		self.current_proc = Some((proc, MatchGraphBuilder::new()))
 	}
 	
+	/// Add a token to the current procedure definition.
+	/// 
+	/// Will panic if no procedure definition was started yet.
 	pub fn token(&mut self, token: TN) {
 		self.get_proc_builder().append(GrammarItemName::Terminal(token), None);
 	}
 
+	/// Add a procedure to the current procedure definition.
+	/// 
+	/// Will panic if no procedure definition was started yet.
 	pub fn proc(&mut self, proc: PN) {
 		self.get_proc_builder().append(GrammarItemName::NonTerminal(proc), None);
 	}
 
+	/// Start a repeat block with a minimum of `min` repeats.
+	/// 
+	/// Will panic if no procedure definition was started yet.
 	pub fn start_repeat(&mut self, min: u32) {
 		self.get_proc_builder().push_return();
 		self.state_stack.push(GrammarBuilderState::Repeat(min));
 	}
 
+	/// Start an optional block.
+	/// 
+	/// Will panic if no procedure definition was started yet.
 	pub fn start_optional(&mut self) {
 		self.get_proc_builder().push_return();
 		self.state_stack.push(GrammarBuilderState::Optional);
 	}
 
+	/// Start a choice block.
+	/// 
+	/// Will panic if no procedure definition was started yet.
 	pub fn start_choice(&mut self) {
 		self.get_proc_builder().push_return();
 		self.state_stack.push(GrammarBuilderState::Choice);
 	}
-
+	
+	/// Within a choice block, finish the current choice path and start defining
+	/// the next one.
+	/// 
+	/// Will panic when not within a choice block or if no procedure definition was started yet.
 	pub fn next_choice_path(&mut self) {
 		if self.state_stack.last() != Some(&GrammarBuilderState::Choice) {
 			panic!("Invalid operation; not within a choice definition");
@@ -58,6 +149,9 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		self.get_proc_builder().end_choice_path();
 	}
 
+	/// End the current block (repeat/optional/choice).
+	/// 
+	/// Will panic when not within a block or if no procedure definition was started yet.
 	pub fn end(&mut self) {
 		match self.state_stack.pop() {
 			None => panic!("Invalid operation; no start definition matches this end call"),
@@ -75,6 +169,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		}
 	}
 
+	/// Complete the grammar build and extract the constructed [`Grammar`].
 	pub fn complete(mut self) -> Grammar<PN, TN> {
 		self.complete_proc();
 		Grammar::new(self.procs)
@@ -192,6 +287,72 @@ macro_rules! build_grammar {
 	};
 }
 
+/// Create a [`Grammar`] by providing definitions for its procedures.
+/// 
+/// This macro uses the syntax
+/// ```
+/// # use sprout::prelude::*;
+/// # use std::fmt;
+/// #
+/// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// # enum Proc { Name }
+/// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// # enum Token { Name }
+/// #
+/// # impl fmt::Display for Token { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "") } }
+/// # impl fmt::Display for Proc { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "") } }
+/// #
+/// grammar! {
+/// 	#Proc::Name => Token::Name, #Proc::Name /*, ... */;
+/// 	#Proc::Name => Token::Name /*, ... */;
+/// 	//...
+/// };
+/// ```
+/// where procedure names are always prefixed with a `#`.
+/// 
+/// Beyond that, for more complex structures, you can use these special expressions in the procedure definitions:
+/// 
+/// | Syntax            | Description                                                                   |
+/// |-------------------|-------------------------------------------------------------------------------|
+/// | `(...)*`          | Repeat the content of the parentheses zero or more times                      |
+/// | `(...)+`          | Repeat the content of the parentheses one or more times                       |
+/// | `(...)?`          | The content of the parentheses is optional                                    |
+/// | `[...; ...; ...]` | Choose one of the options in the semicolon-separated list within the brackets |
+/// 
+/// # Examples
+/// 
+/// Defining a simple grammar
+/// ```
+/// # use sprout::prelude::*;
+/// #
+/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// enum Token {
+/// 	Word,
+/// 	Space,
+/// 	Dot
+/// }
+/// 
+/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// enum Proc {
+/// 	Sentence,
+/// 	Text
+/// }
+/// 
+/// // Though not shown here, both Token an Proc need to implement std::fmt::Display so that
+/// // human-readable error messages can be generated
+/// # use std::fmt;
+/// # impl fmt::Display for Token { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() } }
+/// # impl fmt::Display for Proc { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() } }
+/// 
+/// use Token::*;
+/// use Proc::*;
+/// 
+/// let grammar = grammar! {
+/// 	#Sentence => Word, (Space, Word)*, Dot;
+/// 	#Text => #Sentence, (Space, #Sentence)*;
+/// };
+/// 
+/// ```
 #[macro_export]
 macro_rules! grammar {
 	($($tokens:tt)*) => {

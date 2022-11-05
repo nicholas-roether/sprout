@@ -15,11 +15,10 @@ pub fn example_from_readme() {
 	impl fmt::Display for Token {
 		fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 			match self {
-				Self::Number => write!(f, "number")?,
-				Self::Word => write!(f, "word")?,
-				Self::Space => write!(f, "space")?
+				Self::Number => write!(f, "number"),
+				Self::Word => write!(f, "word"),
+				Self::Space => write!(f, "space")
 			}
-			Ok(())
 		}
 	}
 
