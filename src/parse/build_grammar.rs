@@ -472,52 +472,6 @@ mod tests {
 	}
 
 	#[test]
-	fn should_handle_non_primitive_proc_errors() {
-		let grammar = grammar! {
-			#'a' => 'x', 'y';
-		};
-
-		let res = grammar.parse('a', &[
-			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
-			Token::new('z', "123".to_string(), TextPosition::new(1, 5, 5)),
-		]);
-		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected y");
-		assert_eq!(res.as_ref().unwrap_err().pos.index, 5);
-	}
-
-	#[test]
-	fn should_handle_primitive_proc_errors() {
-		let grammar = grammar! {
-			#!'a' => 'x', 'y';
-		};
-
-		let res = grammar.parse('a', &[
-			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
-			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
-		]);
-		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
-		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
-	}
-
-	#[test]
-	fn should_handle_nested_primitive_proc_errors() {
-		let grammar = grammar! {
-			#'b' => #'a';
-			#!'a' => 'x', 'y';
-		};
-
-		let res = grammar.parse('b', &[
-			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
-			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
-		]);
-		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
-		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
-	}
-
-	#[test]
 	#[should_panic(expected="Ambiguous proc primitivity: 'a' is defined as both primitive and non-primitive")]
 	fn should_panic_when_defining_proc_as_primitive_and_non_primitive() {
 		grammar! {

@@ -382,12 +382,12 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<(), MatchError> {
 		let start_index = tokens.index;
-		let mut error: Option<MatchError> = None;
+		let mut error: MatchError = MatchError::simple(proc.to_string(), start_index);
 		acc.push_proc(proc);
 		for proc in self.procs.iter().filter(|p| p.name == proc) {
 			if let Err(new_err) = proc.graph.compare(tokens, acc, context) {
-			if error.is_none() || new_err.depth > error.as_ref().unwrap().depth {
-				error = Some(new_err);
+			if new_err.index > error.index {
+				error = new_err;
 			}
 		} else {
 			acc.pop_proc();
@@ -399,7 +399,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			return Err(MatchError::simple(proc.to_string(), start_index));
 		}
 
-		Err(error.expect("Unexpected error occurred during parsing"))
+		Err(error)
 	}
 }
 
@@ -421,7 +421,7 @@ mod tests {
 		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9, 420)))));
 
 		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9, 420))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(6, 9, 420))));
+		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420))));
 	}
 
 	#[test]
@@ -457,7 +457,7 @@ mod tests {
 		));
 
 		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TextPosition::new(6, 9, 420))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(6, 9, 420))));
+		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420))));
 	}
 
 	#[test]
@@ -481,7 +481,127 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20, 69))));
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69))));
+	}
+
+	#[test]
+	fn should_handle_non_primitive_proc_errors() {
+		let grammar = grammar! {
+			#'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('z', "123".to_string(), TextPosition::new(1, 5, 5)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected y");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 5);
+	}
+
+	#[test]
+	fn should_handle_primitive_proc_errors() {
+		let grammar = grammar! {
+			#!'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	fn should_handle_nested_primitive_proc_errors() {
+		let grammar = grammar! {
+			#'b' => '_', #'a';
+			#!'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('b', &[
+			Token::new('_', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	fn should_handle_split_proc_errors() {
+		let grammar = grammar! {
+			#'a' => ['x'; 'y'];
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	fn should_handle_partial_split_proc_errors() {
+		let grammar = grammar! {
+			#'a' => ['x'; 'y', 'z'];
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected z");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
+	}
+
+	#[test]
+	fn should_handle_sub_proc_errors() {
+		let grammar = grammar! {
+			#'a' => #'b';
+			#'b' => 'y', 'z'
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
+			Token::new('ä', "123".to_string(), TextPosition::new(5, 0, 6)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected z");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 6);
+	}
+
+	#[test]
+	fn should_handle_completely_unmatched_sub_proc_errors() {
+		let grammar = grammar! {
+			#'a' => #'b';
+			#'b' => 'z'
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	fn should_handle_partial_split_proc_errors_at_same_depth() {
+		let grammar = grammar! {
+			#'a' => ['y', 'x'; 'y', 'z'];
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected one of: x, z");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
 	}
 
 	#[test]
@@ -519,7 +639,7 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected y".to_string(), TextPosition::new(4, 20, 69))));
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69))));
 	}
 
 	#[test]
