@@ -96,9 +96,7 @@ use Proc::*;
 let grammar = grammar! {
    #TwoOrThreeWords => Word, Space, Word, (Space, Word)?;
    #WordOrNumber => [Word; Number];
-   #Sequence =>
-      ([#TwoOrThreeWords; #WordOrNumber], Space)*,
-      [#TwoOrThreeWords; #WordOrNumber];
+   #Sequence => ([#TwoOrThreeWords; #WordOrNumber]){Space}+,
 };
 ```
 
@@ -106,12 +104,14 @@ As you can see in this example, within a grammar definition, names of procedures
 Names of tokens are simply left as-is. Sequences of tokens/procedures are comma-separated, and you can use the following
 special syntax for more complex patterns:
 
-| Syntax            | Description                                                                   |
-|-------------------|-------------------------------------------------------------------------------|
-| `(...)*`          | Repeat the content of the parentheses zero or more times                      |
-| `(...)+`          | Repeat the content of the parentheses one or more times                       |
-| `(...)?`          | The content of the parentheses is optional                                    |
-| `[...; ...; ...]` | Choose one of the options in the semicolon-separated list within the brackets |
+| Syntax            | Description                                         |
+|-------------------|-----------------------------------------------------|
+| `(<A>)*`          | Repeat `<A>` zero or more times                     |
+| `(<A>)+`          | Repeat `<A>` one or more times                      |
+| `(<A>){<B>}*`     | Repeat `<A>` zero or more times, delimited by `<B>` |
+| `(<A>){<B>}+`     | Repeat `<A>` one or more times, delimited by `<B>`  |
+| `(<A>)?`          | `<A>` is optional                                   |
+| `[<A>; <B>; ...]` | Select one of `<A>`, `<B>`, etc.                    |
 
 
 Now, finally, from your alphabet and grammar, you can construct a parser:

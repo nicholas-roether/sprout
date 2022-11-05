@@ -210,7 +210,7 @@ macro_rules! build_grammar {
 	};
 	// [...];
 	((proc, $ret:tt) $builder:expr; [$($items:tt)+] $(; $($tail:tt)*)?) => {
-		$builder.start_repeat(0);
+		$builder.start_choice();
 		$crate::build_grammar!((choice) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
@@ -237,20 +237,6 @@ macro_rules! build_grammar {
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
 	};
-	// (...)*, ...
-	((proc, $ret:tt) $builder:expr; ($($items:tt)+)*, $($tail:tt)+) => {
-		$builder.start_repeat(0);
-		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
-		$builder.end();
-		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
-	};
-	// (...)*;
-	((proc, $ret:tt) $builder:expr; ($($items:tt)+)* $(; $($tail:tt)*)?) => {
-		$builder.start_repeat(0);
-		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
-		$builder.end();
-		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
-	};
 	// (...){...}+, ...
 	((proc, $ret:tt) $builder:expr; ($($items:tt)+){$($delim:tt)+}+, $($tail:tt)+) => {
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
@@ -265,6 +251,20 @@ macro_rules! build_grammar {
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.start_repeat(0);
 		$crate::build_grammar!((proc, $ret) $builder; $($delim)+);
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.end();
+		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
+	};
+	// (...)*, ...
+	((proc, $ret:tt) $builder:expr; ($($items:tt)+)*, $($tail:tt)+) => {
+		$builder.start_repeat(0);
+		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
+		$builder.end();
+		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
+	};
+	// (...)*;
+	((proc, $ret:tt) $builder:expr; ($($items:tt)+)* $(; $($tail:tt)*)?) => {
+		$builder.start_repeat(0);
 		$crate::build_grammar!((proc, $ret) $builder; $($items)+);
 		$builder.end();
 		$($crate::build_grammar!(($ret) $builder; $($tail)*);)?
@@ -366,12 +366,14 @@ macro_rules! build_grammar {
 /// 
 /// Beyond that, for more complex structures, you can use these special expressions in the procedure definitions:
 /// 
-/// | Syntax            | Description                                                                   |
-/// |-------------------|-------------------------------------------------------------------------------|
-/// | `(...)*`          | Repeat the content of the parentheses zero or more times                      |
-/// | `(...)+`          | Repeat the content of the parentheses one or more times                       |
-/// | `(...)?`          | The content of the parentheses is optional                                    |
-/// | `[...; ...; ...]` | Choose one of the options in the semicolon-separated list within the brackets |
+/// | Syntax            | Description                                         |
+/// |-------------------|-----------------------------------------------------|
+/// | `(<A>)*`          | Repeat `<A>` zero or more times                     |
+/// | `(<A>)+`          | Repeat `<A>` one or more times                      |
+/// | `(<A>){<B>}*`     | Repeat `<A>` zero or more times, delimited by `<B>` |
+/// | `(<A>){<B>}+`     | Repeat `<A>` one or more times, delimited by `<B>`  |
+/// | `(<A>)?`          | `<A>` is optional                                   |
+/// | `[<A>; <B>; ...]` | Select one of `<A>`, `<B>`, etc.                    |
 /// 
 /// # Examples
 /// 
@@ -402,8 +404,8 @@ macro_rules! build_grammar {
 /// use Proc::*;
 /// 
 /// let grammar = grammar! {
-/// 	#Sentence => Word, (Space, Word)*, Dot;
-/// 	#Text => #Sentence, (Space, #Sentence)*;
+/// 	#Sentence => (Word){Space}+, Dot;
+/// 	#Text => (#Sentence){Space}+;
 /// };
 /// 
 /// ```
@@ -605,6 +607,13 @@ mod tests {
 		assert!(
 			grammar.parse('a', &[
 				Token::new('z', "123".to_string(), TextPosition::new(1, 0, 0)),
+			]).is_err()
+		);
+
+		assert!(
+			grammar.parse('a', &[
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
+				Token::new('x', "123".to_string(), TextPosition::new(1, 0, 0)),
 			]).is_err()
 		);
 	}

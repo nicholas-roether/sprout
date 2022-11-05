@@ -182,8 +182,8 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 /// use Proc::*;
 /// 
 /// let grammar = grammar! {
-/// 	#Sentence => Word, (Space, Word)*, Dot;
-/// 	#Text => #Sentence, (Space, #Sentence)*;
+/// 	#Sentence => (Word){Space}+, Dot;
+/// 	#Text => (#Sentence){Space}+;
 /// };
 /// 
 /// ```

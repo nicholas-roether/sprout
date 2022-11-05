@@ -52,7 +52,7 @@ pub fn example_from_readme() {
 	let grammar = grammar! {
 		#TwoOrThreeWords => Word, Space, Word, (Space, Word)?;
 		#WordOrNumber => [Word; Number];
-		#Sequence => ([#TwoOrThreeWords; #WordOrNumber], Space)*, [#TwoOrThreeWords; #WordOrNumber];
+		#Sequence => ([#TwoOrThreeWords; #WordOrNumber]){Space}+;
 	};
 
 	let parser = Parser::new(alphabet, grammar);
