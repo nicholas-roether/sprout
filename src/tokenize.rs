@@ -1,5 +1,7 @@
 use std::{vec, slice, fmt::{self, Debug}};
 
+use colored::Colorize;
+
 use crate::{token_match::{TokenMatcher, ExprParseError}, ParsingError, TextPosition};
 
 #[derive(Debug)]
@@ -62,7 +64,7 @@ impl<N> Token<N> {
 
 impl<N: fmt::Display> fmt::Display for Token<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} \"{}\" at {}", self.name, self.str, self.pos)
+        write!(f, "{} \"{}\" at {}", self.name.to_string().italic(), self.str, self.pos)
     }
 }
 

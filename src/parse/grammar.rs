@@ -1,5 +1,6 @@
 use std::{fmt, collections::HashMap, hash::Hash};
 
+use colored::Colorize;
 use trees::{Forest, Tree};
 
 use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, MatcherContext, MatchError, MatchGraph, Matcher, MatchResult}, ParsingError, AST};
@@ -19,8 +20,8 @@ pub enum GrammarItemName<PN, TN> {
 impl<PN: fmt::Display, TN: fmt::Display> fmt::Display for GrammarItemName<PN, TN> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Terminal(token_name) | Self::Signature(token_name) => write!(f, "{}", token_name),
-			Self::NonTerminal(proc_name) => write!(f, "{}", proc_name)
+			Self::Terminal(token_name) | Self::Signature(token_name) => write!(f, "{}", token_name.to_string().italic()),
+			Self::NonTerminal(proc_name) => write!(f, "{}", proc_name.to_string().italic())
 		}
 	}
 }
@@ -451,7 +452,7 @@ mod tests {
 		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9, 420)))));
 
 		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9, 420))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420), None)));
+		assert_eq!(result2, Err(ParsingError::new(format!("Expected {}", "a".italic()), TextPosition::new(6, 9, 420), None)));
 	}
 
 	#[test]
@@ -470,7 +471,7 @@ mod tests {
 			Token::new('b', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('e', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(4, 20, 69), None)));
+		assert_eq!(result2, Err(ParsingError::new(format!("Expected {}", "c".italic()), TextPosition::new(4, 20, 69), None)));
 	}
 
 	#[test]
@@ -487,7 +488,7 @@ mod tests {
 		));
 
 		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TextPosition::new(6, 9, 420))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420), None)));
+		assert_eq!(result2, Err(ParsingError::new(format!("Expected {}", "a".italic()), TextPosition::new(6, 9, 420), None)));
 	}
 
 	#[test]
@@ -511,7 +512,7 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69), None)));
+		assert_eq!(result2, Err(ParsingError::new(format!("Expected {}", "b".italic()), TextPosition::new(4, 20, 69), None)));
 	}
 
 	#[test]
@@ -525,7 +526,7 @@ mod tests {
 			Token::new('z', "123".to_string(), TextPosition::new(1, 5, 5)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected y");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "y".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 5);
 	}
 
@@ -540,7 +541,7 @@ mod tests {
 			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "a".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
@@ -557,7 +558,7 @@ mod tests {
 			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "a".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
@@ -571,7 +572,7 @@ mod tests {
 			Token::new('2', "123".to_string(), TextPosition::new(1, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected x");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "x".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
@@ -585,7 +586,7 @@ mod tests {
 			Token::new('z', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "a".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
@@ -599,7 +600,7 @@ mod tests {
 			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected z");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "z".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
 	}
 
@@ -615,7 +616,7 @@ mod tests {
 			Token::new('ä', "123".to_string(), TextPosition::new(5, 0, 6)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected z");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "z".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 6);
 	}
 
@@ -630,7 +631,7 @@ mod tests {
 			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "a".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
@@ -644,7 +645,7 @@ mod tests {
 			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected one of: x, z");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected one of: {}, {}", "x".italic(), "z".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
 	}
 
@@ -658,7 +659,7 @@ mod tests {
 			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
 		]);
 		assert!(res.is_err());
-		assert_eq!(res.as_ref().unwrap_err().message, "Expected x");
+		assert_eq!(res.as_ref().unwrap_err().message, format!("Expected {}", "x".italic()));
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
 	}
 
@@ -697,7 +698,7 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69), None)));
+		assert_eq!(result2, Err(ParsingError::new(format!("Expected {}", "b".italic()), TextPosition::new(4, 20, 69), None)));
 	}
 
 	#[test]
@@ -723,6 +724,6 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('y', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected  ".to_string(), TextPosition::new(4, 20, 69), None)));
+		assert_eq!(result2, Err(ParsingError::new(format!("Expected {}", " ".italic()), TextPosition::new(4, 20, 69), None)));
 	}
 }

@@ -9,6 +9,7 @@ pub mod prelude;
 
 use std::fmt;
 use std::hash::Hash;
+use colored::Colorize;
 use parse::Grammar;
 use tokenize::Alphabet;
 use trees::Tree;
@@ -156,13 +157,13 @@ impl ParsingError {
 		if start_ellipsis { pointer_offset += 3 }
 
 		write!(f, "{}", " ".repeat(pointer_offset))?;
-		writeln!(f, "^")
+		writeln!(f, "{}", "^".bold().red())
 	}
 }
 
 impl fmt::Display for ParsingError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		writeln!(f, "Parsing error: {} ({})", self.message, self.pos)?;
+		writeln!(f, "{}: {} ({})", "Parsing error".red().bold(), self.message, self.pos)?;
 		if let Some(source) = &self.source {
 			writeln!(f)?;
 			self.format_source_pointer(f, source)?;
@@ -290,6 +291,8 @@ impl<PN: Eq + Hash + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Disp
 
 #[cfg(test)]
 mod tests {
+    use colored::Colorize;
+
     use crate::{ParsingError, TextPosition};
 
 	#[test]
@@ -300,7 +303,7 @@ mod tests {
 			Some("123\n456789\nsgfde".to_string())
 		);
 
-		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:1)\n\n456789\n ^\n");
+		assert_eq!(parsing_error.to_string(), format!("{}: Error happened here (2:1)\n\n456789\n {}\n", "Parsing error".red().bold(), "^".red().bold()));
 	}
 
 	#[test]
@@ -311,7 +314,7 @@ mod tests {
 			Some("123\n456789\nsgfde".to_string())
 		);
 
-		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:5)\n\n456789\n     ^\n");
+		assert_eq!(parsing_error.to_string(), format!("{}: Error happened here (2:5)\n\n456789\n     {}\n", "Parsing error".red().bold(), "^".red().bold()));
 	}
 
 	#[test]
@@ -322,6 +325,6 @@ mod tests {
 			Some("123\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsgfde".to_string())
 		);
 
-		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:43)\n\n...aaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaa...\n                       ^\n");
+		assert_eq!(parsing_error.to_string(), format!("{}: Error happened here (2:43)\n\n...aaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaa...\n                       {}\n", "Parsing error".red().bold(), "^".red().bold()));
 	}
 }

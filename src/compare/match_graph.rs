@@ -1,5 +1,6 @@
 use std::fmt;
 
+use colored::Colorize;
 use petgraph::{graph::{DiGraph, NodeIndex, EdgeReference}, visit::EdgeRef};
 
 use super::SequenceView;
@@ -31,9 +32,14 @@ impl fmt::Display for MatchError {
 			return write!(f, "Invalid syntax");
 		}
 		if self.expectations.len() == 1 {
-			return write!(f, "Expected {}", self.expectations.first().unwrap());
+			return write!(f, "Expected {}", self.expectations.first().unwrap().italic());
 		}
-		write!(f, "Expected one of: {}", self.expectations.join(", "))
+		write!(f, "Expected one of: ")?;
+		for i in 0 .. self.expectations.len() {
+			if i != 0 { write!(f, ", ")?; }
+			write!(f, "{}", self.expectations[i].italic())?;
+		}
+		Ok(())
 	}
 }
 
@@ -180,13 +186,13 @@ mod tests {
 	#[test]
 	fn match_error_with_single_expectation_should_display_correctly() {
 		let err = MatchError::simple("something cool".to_string(), 12);
-		assert_eq!(format!("{err}"), "Expected something cool");
+		assert_eq!(format!("{err}"), format!("Expected {}", "something cool".italic()));
 	}
 
 	#[test]
 	fn match_error_with_multiple_expectations_should_display_correctly() {
 		let err = MatchError::new(vec!["123".to_string(), "456".to_string(), "789".to_string()], 0, false);
-		assert_eq!(format!("{err}"), "Expected one of: 123, 456, 789");
+		assert_eq!(format!("{err}"), format!("Expected one of: {}, {}, {}", "123".italic(), "456".italic(), "789".italic()));
 	}
 
 	#[test]
