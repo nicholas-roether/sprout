@@ -1,10 +1,5 @@
 # Sprout
 
-_**Warning**: This crate is still in the early stages of development, and is not guaranteed to be stable._
-_Also, I built this for fun to use with my personal projects without having any idea about how_
-_stuff like this usually works, so until I eventually look into this topic more and find time for_
-_optimiziations, be warned that this implementation is likely not optimal._
-
 `sprout` is a rust crate that parses text into ASTs (_Abstract Syntax Trees_), given definitions for tokens
 and grammars built from those tokens.
 
