@@ -124,6 +124,14 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		self.get_proc_builder().append(GrammarItemName::Terminal(token));
 	}
 
+	/// Add a signature token to the current procedure definition. Signatures give the current
+	/// procedure priority over others even if it only matches up to this point.
+	/// 
+	/// Will panic if no procedure definition was started yet.
+	pub fn signature(&mut self, token: TN) {
+		self.get_proc_builder().append(GrammarItemName::Signature(token));
+	}
+
 	/// Add a procedure to the current procedure definition.
 	/// 
 	/// Will panic if no procedure definition was started yet.
@@ -324,6 +332,16 @@ macro_rules! build_grammar {
 		$builder.proc($proc_name);
 		$($crate::build_grammar!(($ret) $builder; $($tail)+);)?
 	};
+	// @x, ...
+	((proc, $ret:tt) $builder:expr; @$proc_name:expr, $($tail:tt)+) => {
+		$builder.signature($proc_name);
+		$crate::build_grammar!((proc, $ret) $builder; $($tail)+);
+	};
+	// @x;
+	((proc, $ret:tt) $builder:expr; @$proc_name:expr $(; $($tail:tt)*)?) => {
+		$builder.signature($proc_name);
+		$($crate::build_grammar!(($ret) $builder; $($tail)+);)?
+	};
 	// x, ...
 	((proc, $ret:tt) $builder:expr; $token_name:expr, $($tail:tt)+) => {
 		$builder.token($token_name);
@@ -386,7 +404,7 @@ macro_rules! build_grammar {
 /// #
 /// grammar! {
 /// 	#Proc::Name1 => Token::Name, #Proc::Name1 /*, ... */;
-/// 	#!Proc::Name2 => Token::Name /*, ... */;
+/// 	#!Proc::Name2 => @Token::Name /*, ... */;
 /// 	#?Proc::Name3 => Token::Name /*, ... */;
 /// 	//...
 /// };
@@ -412,6 +430,10 @@ macro_rules! build_grammar {
 /// | `(<A>){<B>}+`     | Repeat `<A>` one or more times, delimited by `<B>`  |
 /// | `(<A>)?`          | `<A>` is optional                                   |
 /// | `[<A>; <B>; ...]` | Select one of `<A>`, `<B>`, etc.                    |
+/// 
+/// You can also designate tokens as _signatures_ by prefixing them with an `@`. Signature tokens give the current procedure priority
+/// over others, even if it only matches up to that point. This is handy if you want to define a certain structure that forces
+/// the parser to interpret the text in a certain way, even if it leads to an error.
 /// 
 /// # Examples
 /// 

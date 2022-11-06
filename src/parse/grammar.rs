@@ -7,16 +7,19 @@ use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, Matc
 /// The name of a grammar item, meaning a token or a procedure
 #[derive(Debug, Clone)]
 pub enum GrammarItemName<PN, TN> {
-	/// The name of a terminal grammar icon (a token).
+	/// The name of a terminal grammar item (a token).
 	Terminal(TN),
-	/// The name of a non-terminal grammar icon (a procedure).
+	/// The name of a signature grammar item, one that gives this procedure priority over others
+	/// even if it only matches up to this point
+	Signature(TN),
+	/// The name of a non-terminal grammar item (a procedure).
 	NonTerminal(PN)
 }
 
 impl<PN: fmt::Display, TN: fmt::Display> fmt::Display for GrammarItemName<PN, TN> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::Terminal(token_name) => write!(f, "{}", token_name),
+			Self::Terminal(token_name) | Self::Signature(token_name) => write!(f, "{}", token_name),
 			Self::NonTerminal(proc_name) => write!(f, "{}", proc_name)
 		}
 	}
@@ -164,6 +167,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		token_name: TN,
 		sequence: &mut SequenceView<Token<TN>>,
 		accumulator: &mut ASTBuilder<PN>,
+		signature: bool
 	) -> Result<MatchResult, MatchError> {
 		let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
 		if sequence.items().is_empty() {
@@ -175,7 +179,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		}
 		sequence.index += 1;
 		accumulator.push_token(next_token.clone());
-		Ok(MatchResult::Match)
+		Ok(if signature { MatchResult::Signature } else { MatchResult::Match })
 	}
 
 	fn compare_as_proc(
@@ -222,11 +226,12 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	) -> Result<MatchResult, MatchError> {
 		loop {
 			let result = match self {
-				GrammarItemName::Terminal(token_name) => Self::compare_as_token(*token_name, sequence, accumulator),
+				GrammarItemName::Terminal(token_name) => Self::compare_as_token(*token_name, sequence, accumulator, false),
+				GrammarItemName::Signature(token_name) => Self::compare_as_token(*token_name, sequence, accumulator, true),
 				GrammarItemName::NonTerminal(proc_name) => Self::compare_as_proc(*proc_name, sequence, accumulator, context)
 			};
 			if result.is_ok() {
-				break;
+				return result;
 			}
 			if Self::next_is_whitespace(sequence, context) {
 				sequence.index += 1;
@@ -234,7 +239,6 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			}
 			return result;
 		}
-		Ok(MatchResult::Match)
 	}
 }
 
@@ -640,6 +644,20 @@ mod tests {
 		]);
 		assert!(res.is_err());
 		assert_eq!(res.as_ref().unwrap_err().message, "Expected one of: x, z");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
+	}
+
+	#[test]
+	fn should_handle_split_with_signature() {
+		let grammar = grammar! {
+			#'a' => [@'y', 'x'; 'y', 'z'];
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('y', "123".to_string(), TextPosition::new(5, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected x");
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 3);
 	}
 
