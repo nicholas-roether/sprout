@@ -85,6 +85,12 @@ impl<PN: fmt::Debug + PartialEq + Copy> ASTNode<PN> {
 	}
 }
 
+impl<PN: fmt::Debug + fmt::Display + PartialEq + Copy> fmt::Display for ASTNode<PN> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{:?}[\"{}\"]", self.proc, self.text)
+	}
+}
+
 /// An AST (abstract syntax tree). Its nodes and represent occurrences of grammar procedures
 /// in the parsed text.
 /// 

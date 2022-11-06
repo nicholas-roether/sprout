@@ -141,11 +141,12 @@ let tree = parser.parse(Proc::Sequence, "abc ab 123 xyz 69".to_string());
 would produce an AST like this:
 
 ```
-Sequence "abc ab 123 xyz 69"
-   TwoOrThreeWords "abc ab"
-   WordOrNumber "123"
-   WordOrNumber "xyz"
-   WordOrNumber "69"
+Sequence["abc ab 123 xyz 69"](
+   TwoOrThreeWords["abc ab"]
+   WordOrNumber["123"]
+   WordOrNumber["xyz"]
+   WordOrNumber["69"]
+)
 ```
 
 Specifically, the output type, `AST`, is an alias for a `trees::Tree` of `ASTNode`s, where `ASTNode` has these fields:

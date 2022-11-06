@@ -1,7 +1,6 @@
 use std::fmt;
 
 use sprout::prelude::*;
-use trees::tr;
 
 #[test]
 pub fn example_from_readme() {
@@ -59,14 +58,10 @@ pub fn example_from_readme() {
 
 	let tree = parser.parse(Proc::Sequence, "abc ab 123 xyz 69".to_string());
 
+	println!("{}", tree.as_ref().unwrap());
+
 	assert_eq!(
-		tree,
-		Ok(
-			tr(ASTNode::new(Proc::Sequence, "abc ab 123 xyz 69".to_string(), TextPosition::new(1, 0, 0)))
-				/ tr(ASTNode::new(Proc::TwoOrThreeWords, "abc ab".to_string(), TextPosition::new(1, 0, 0)))
-				/ tr(ASTNode::new(Proc::WordOrNumber, "123".to_string(), TextPosition::new(1, 7, 7)))
-				/ tr(ASTNode::new(Proc::WordOrNumber, "xyz".to_string(), TextPosition::new(1, 11, 11)))
-				/ tr(ASTNode::new(Proc::WordOrNumber, "69".to_string(), TextPosition::new(1, 15, 15)))
-		)
+		tree.unwrap().to_string(),
+		r#"Sequence["abc ab 123 xyz 69"]( TwoOrThreeWords["abc ab"] WordOrNumber["123"] WordOrNumber["xyz"] WordOrNumber["69"] )"#
 	)
 }
