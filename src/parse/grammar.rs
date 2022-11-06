@@ -5,7 +5,7 @@ use trees::{Forest, Tree};
 use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, MatcherContext, MatchError, MatchGraph, Matcher, MatchResult}, ParsingError, AST};
 
 /// The name of a grammar item, meaning a token or a procedure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GrammarItemName<PN, TN> {
 	/// The name of a terminal grammar item (a token).
 	Terminal(TN),
@@ -200,17 +200,18 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		Ok(MatchResult::Match)
 	}
 
-	fn next_is_whitespace(sequence: &mut SequenceView<Token<TN>>, context: &MatcherContext<ParsingContext<PN, TN>>) -> bool {
+	fn next_whitespace<'a>(sequence: &mut SequenceView<'a, Token<TN>>, context: &MatcherContext<ParsingContext<PN, TN>>) -> Option<&'a Token<TN>> {
 		let Some(whitespace_token) = context.data.settings.whitespace else {
-			return false;
+			return None;
 		};
 		if sequence.is_empty() {
-			return false;
+			return None;
 		}
-		if sequence.items().first().unwrap().name == whitespace_token {
-			return true;
+		let first_token = sequence.items().first().unwrap();
+		if first_token.name == whitespace_token {
+			return Some(&first_token);
 		}
-		false
+		None
 	}
 }
 
@@ -224,20 +225,20 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		accumulator: &mut ASTBuilder<PN>,
 		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<MatchResult, MatchError> {
-		loop {
-			let result = match self {
-				GrammarItemName::Terminal(token_name) => Self::compare_as_token(*token_name, sequence, accumulator, false),
-				GrammarItemName::Signature(token_name) => Self::compare_as_token(*token_name, sequence, accumulator, true),
-				GrammarItemName::NonTerminal(proc_name) => Self::compare_as_proc(*proc_name, sequence, accumulator, context)
-			};
-			if result.is_ok() {
-				return result;
-			}
-			if Self::next_is_whitespace(sequence, context) {
+		if
+			context.data.settings.whitespace.is_some()
+			&& *self != GrammarItemName::Terminal(context.data.settings.whitespace.unwrap())
+			&& *self != GrammarItemName::Signature(context.data.settings.whitespace.unwrap())
+		{
+			while let Some(whitespace) = Self::next_whitespace(sequence, context) {
+				accumulator.push_token(whitespace.clone());
 				sequence.index += 1;
-				continue;
 			}
-			return result;
+		}
+		match self {
+			GrammarItemName::Terminal(token_name) => Self::compare_as_token(*token_name, sequence, accumulator, false),
+			GrammarItemName::Signature(token_name) => Self::compare_as_token(*token_name, sequence, accumulator, true),
+			GrammarItemName::NonTerminal(proc_name) => Self::compare_as_proc(*proc_name, sequence, accumulator, context)
 		}
 	}
 }
@@ -678,7 +679,7 @@ mod tests {
 			Token::new('z', String::from("789"), TextPosition::new(1, 2, 3)),
 		]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123456789".to_string(), TextPosition::new(6, 9, 420)))
+			tr(ASTNode::new('a', "123   456    789".to_string(), TextPosition::new(6, 9, 420)))
 				/ tr(ASTNode::new('b', "456".to_string(), TextPosition::new(4, 20, 69)))
 		));
 
@@ -714,7 +715,7 @@ mod tests {
 			Token::new('y', String::from("456"), TextPosition::new(4, 20, 69)),
 		]);
 		assert_eq!(result, Ok(
-			tr(ASTNode::new('a', "123_456".to_string(), TextPosition::new(6, 9, 420)))
+			tr(ASTNode::new('a', "123_   456".to_string(), TextPosition::new(6, 9, 420)))
 		));
 
 
