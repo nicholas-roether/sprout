@@ -64,7 +64,7 @@ impl<N> Token<N> {
 
 impl<N: fmt::Display> fmt::Display for Token<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} \"{}\" at {}", self.name.to_string().italic(), self.str, self.pos)
+        write!(f, "{} \"{}\" at {}", self.name.to_string().bold(), self.str, self.pos)
     }
 }
 

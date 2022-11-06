@@ -87,9 +87,9 @@ impl fmt::Display for ExprParseError {
             char_string = "end of expression".to_string();
         }
         if self.message.is_some() {
-            write!(f, "Unexpected {} at index {}: {}", char_string.italic(), self.index, self.message.as_ref().unwrap())
+            write!(f, "Unexpected {} at index {}: {}", char_string.bold(), self.index, self.message.as_ref().unwrap())
         } else {
-            write!(f, "Unexpected {} at index {}", char_string.italic(), self.index)
+            write!(f, "Unexpected {} at index {}", char_string.bold(), self.index)
         }
     }
 }
@@ -314,7 +314,7 @@ mod tests {
 
         assert_eq!(matcher.compare("abc"), Ok(String::from("abc")), "'abc' should match first 3 chars in 'abc'");
         assert_eq!(matcher.compare("abcdefg"), Ok(String::from("abc")), "'abc' should match first 3 chars in 'abcdefg'");
-        assert_eq!(matcher.compare("abedefg"), Err(format!("(expr:2) Expected {}", "'c'".italic())), "'abc' should not match in 'abedefg'");
+        assert_eq!(matcher.compare("abedefg"), Err(format!("(expr:2) Expected {}", "'c'".bold())), "'abc' should not match in 'abedefg'");
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
         
         assert_eq!(matcher.compare("abbbbbc"), Ok(String::from("abbbbb")), "'ab*' should match first 6 chars in 'abbbbbc'");
         assert_eq!(matcher.compare("acfds"), Ok(String::from("a")), "'ab*' should match first char in 'acfds'");
-        assert_eq!(matcher.compare("cgfds"), Err(format!("(expr:0) Expected {}", "'a'".italic())), "'ab*' should not match in 'cgfds'");
+        assert_eq!(matcher.compare("cgfds"), Err(format!("(expr:0) Expected {}", "'a'".bold())), "'ab*' should not match in 'cgfds'");
     }
 
     #[test]
@@ -331,7 +331,7 @@ mod tests {
         let matcher = TokenMatcher::expr("a(bc)*").unwrap();
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Ok(String::from("abcbcbcbc")), "'a(bc)*' should match first 9 chars in 'abcbcbcbcefdfs'");
-        assert_eq!(matcher.compare("bcbcbcbcefdfs"), Err(format!("(expr:0) Expected {}", "'a'".italic())), "'a(bc)*' should not match 'bcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("bcbcbcbcefdfs"), Err(format!("(expr:0) Expected {}", "'a'".bold())), "'a(bc)*' should not match 'bcbcbcbcefdfs'");
     }
 
     #[test]
@@ -339,8 +339,8 @@ mod tests {
         let matcher = TokenMatcher::expr("a(bc)+").unwrap();
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Ok(String::from("abcbcbcbc")), "'a(bc)+' should match first 9 chars in 'abcbcbcbcefdfs'");
-        assert_eq!(matcher.compare("bcbcbcbcefdfs"), Err(format!("(expr:0) Expected {}", "'a'".italic())), "'a(bc)+' not match 'bcbcbcbcefdfs'");
-        assert_eq!(matcher.compare("aefdfs"), Err(format!("(expr:1) Expected {}", "'b'".italic())), "'a(bc)+' should not match 'aefdfs'");
+        assert_eq!(matcher.compare("bcbcbcbcefdfs"), Err(format!("(expr:0) Expected {}", "'a'".bold())), "'a(bc)+' not match 'bcbcbcbcefdfs'");
+        assert_eq!(matcher.compare("aefdfs"), Err(format!("(expr:1) Expected {}", "'b'".bold())), "'a(bc)+' should not match 'aefdfs'");
     }
 
     #[test]
@@ -349,7 +349,7 @@ mod tests {
 
         assert_eq!(matcher.compare("abcbcbcbcefdfs"), Ok(String::from("abc")), "'a(bc)?' should match first 3 chars in 'abcbcbcbcefdfs'");
         assert_eq!(matcher.compare("adbcbcbcbcefdfs"), Ok(String::from("a")), "'a(bc)?' should match the first character of 'adbcbcbcbcefdfs'");
-        assert_eq!(matcher.compare("gdfefdfs"), Err(format!("(expr:0) Expected {}", "'a'".italic())), "'a(bc)?' not match 'gdfefdfs'");
+        assert_eq!(matcher.compare("gdfefdfs"), Err(format!("(expr:0) Expected {}", "'a'".bold())), "'a(bc)?' not match 'gdfefdfs'");
     }
 
     #[test]
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(matcher.compare("ac534"), Ok(String::from("ac")), "'a[bc]' should match the first 2 chars in 'ac534'");
         assert_eq!(
             matcher.compare("a534"),
-            Err(format!("(expr:1) Expected one of: {}, {}", "'b'".italic(), "'c'".italic())),
+            Err(format!("(expr:1) Expected one of: {}, {}", "'b'".bold(), "'c'".bold())),
             "'a[bc]' should not match 'a534'"
         );
     }
@@ -377,7 +377,7 @@ mod tests {
         let matcher = TokenMatcher::expr("\\(\\(\\[\\*").unwrap();
 
         assert_eq!(matcher.compare("(([*"), Ok(String::from("(([*")), "'\\(\\(\\[\\*' should match the first 4 chars in '(([*'");
-        assert_eq!(matcher.compare("(([a"), Err(format!("(expr:3) Expected {}", "'*'".italic())), "'\\(\\(\\[\\*' should not match '(([a'");
+        assert_eq!(matcher.compare("(([a"), Err(format!("(expr:3) Expected {}", "'*'".bold())), "'\\(\\(\\[\\*' should not match '(([a'");
     }
 
     #[test]
@@ -389,7 +389,7 @@ mod tests {
         assert_eq!(matcher.compare("-"), Ok(String::from("-")), "'[a\\-\\]]' should match '-'");
         assert_eq!(
             matcher.compare("bet46r"),
-            Err(format!("(expr:0) Expected one of: {}, {}, {}", "'a'".italic(), "'-'".italic(), "']'".italic())),
+            Err(format!("(expr:0) Expected one of: {}, {}, {}", "'a'".bold(), "'-'".bold(), "']'".bold())),
             "'[a\\-\\]]' should not match 'bet46r'"
         );
     }
@@ -401,8 +401,8 @@ mod tests {
         assert_eq!(matcher.compare("v"), Ok(String::from("v")), "'[a-z]' should match 'v'");
         assert_eq!(matcher.compare("s"), Ok(String::from("s")), "'[a-z]' should match 's'");
         assert_eq!(matcher.compare("b"), Ok(String::from("b")), "'[a-z]' should match 'b'");
-        assert_eq!(matcher.compare("A"), Err(format!("(expr:0) Expected {}", "char in range 'a' to 'z'".italic())), "'[a-z]' should not match 'A'");
-        assert_eq!(matcher.compare("-"), Err(format!("(expr:0) Expected {}", "char in range 'a' to 'z'".italic())), "'[a-z]' should not match '-'");
+        assert_eq!(matcher.compare("A"), Err(format!("(expr:0) Expected {}", "char in range 'a' to 'z'".bold())), "'[a-z]' should not match 'A'");
+        assert_eq!(matcher.compare("-"), Err(format!("(expr:0) Expected {}", "char in range 'a' to 'z'".bold())), "'[a-z]' should not match '-'");
     }
 
     #[test]
@@ -413,7 +413,7 @@ mod tests {
         assert_eq!(matcher.compare("4"), Ok(String::from("4")), "'[1-24-5]' should match '4'");
         assert_eq!(
             matcher.compare("3"),
-            Err(format!("(expr:0) Expected one of: {}, {}", "char in range '1' to '2'".italic(), "char in range '4' to '5'".italic())),
+            Err(format!("(expr:0) Expected one of: {}, {}", "char in range '1' to '2'".bold(), "char in range '4' to '5'".bold())),
             "'[1-24-5]' should not match '3'"
         );
     }
