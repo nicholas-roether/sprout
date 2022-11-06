@@ -22,7 +22,7 @@ pub fn example_from_readme() {
 		}
 	}
 
-	#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+	#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 	pub enum Proc {
 		TwoOrThreeWords,
 		WordOrNumber,

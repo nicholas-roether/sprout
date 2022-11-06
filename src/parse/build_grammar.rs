@@ -1,8 +1,8 @@
-use std::fmt;
+use std::{fmt, hash::Hash, collections::HashMap};
 
 use crate::compare::MatchGraphBuilder;
 
-use super::{GrammarProc, Grammar, GrammarItemName};
+use super::{GrammarProc, Grammar, GrammarItemName, ProcErrorBehavior};
 
 #[derive(Debug, PartialEq, Eq)]
 enum GrammarBuilderState {
@@ -28,7 +28,7 @@ enum GrammarBuilderState {
 /// 	Dot
 /// }
 /// 
-/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// enum Proc {
 /// 	Sentence,
 /// 	Text
@@ -40,7 +40,7 @@ enum GrammarBuilderState {
 /// # impl fmt::Display for Token { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() } }
 /// # impl fmt::Display for Proc { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { todo!() } }
 /// 
-/// use sprout::parse::GrammarBuilder;
+/// use sprout::parse::{GrammarBuilder, ProcErrorBehavior};
 /// 
 /// use Token::*;
 /// use Proc::*;
@@ -48,8 +48,8 @@ enum GrammarBuilderState {
 /// let mut grammar_builder = GrammarBuilder::new();
 /// 
 /// // Start a primtive procedure definition
-/// // Primitive procedures will not reference their composite parts in error messages
-/// grammar_builder.define(Sentence, true);
+/// // See documentation for ProcErrorBehavior
+/// grammar_builder.define(Sentence, ProcErrorBehavior::Primitive);
 /// 
 /// // Add a token to the current procedure
 /// grammar_builder.token(Word);
@@ -66,7 +66,7 @@ enum GrammarBuilderState {
 /// grammar_builder.token(Dot);
 /// 
 /// // Start the next (non-primitive) procedure definition
-/// grammar_builder.define(Text, false);
+/// grammar_builder.define(Text, ProcErrorBehavior::Default);
 /// 
 /// // Add a reference to another procedure to the current procedure
 /// grammar_builder.proc(Sentence);
@@ -82,41 +82,38 @@ enum GrammarBuilderState {
 /// 
 /// See method documentation for more options.
 #[derive(Debug)]
-pub struct GrammarBuilder<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> {
+pub struct GrammarBuilder<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> {
 	procs: Vec<GrammarProc<PN, TN>>,
 	current_proc: Option<(PN, MatchGraphBuilder<GrammarItemName<PN, TN>>)>,
-	primitive_procs: Vec<PN>,
-	defined_procs: Vec<PN>,
+	error_behaviors: HashMap<PN, ProcErrorBehavior>,
 	state_stack: Vec<GrammarBuilderState>
 }
 
-impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> GrammarBuilder<PN, TN> {
+impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Debug + fmt::Display> GrammarBuilder<PN, TN> {
 	pub fn new() -> Self {
-		GrammarBuilder { procs: vec![], current_proc: None, state_stack: vec![], primitive_procs: vec![], defined_procs: vec![] }
+		GrammarBuilder {
+			procs: vec![],
+			current_proc: None,
+			state_stack: vec![],
+			error_behaviors: HashMap::new()
+		}
 	}
 
 	/// Start a new procedure definition.
 	/// 
-	/// Setting `primitive` to true will make the parser consider this proc a
-	/// "basic building block" of the language you are parsing, which means that
-	/// error messages will always refer to this proc by name rather than it's constituent
-	/// components.
+	/// for a detailed description of the options for `error_behavior`, see [`ProcErrorBehavior`].
 	/// 
 	/// Will panic if there are any unfinished repeats, optionals, or choices.
-	pub fn define(&mut self, proc: PN, primitive: bool) {
+	pub fn define(&mut self, proc: PN, error_behavior: ProcErrorBehavior) {
 		self.complete_proc();
-		if primitive {
-			if !self.primitive_procs.contains(&proc) {
-				if self.defined_procs.contains(&proc) {
-					panic!("Ambiguous proc primitivity: {proc:?} is defined as both primitive and non-primitive");
-				}
-				self.primitive_procs.push(proc);
+		if let Some(defined_behavior) = self.error_behaviors.get(&proc) {
+			if *defined_behavior != error_behavior {
+				panic!("Ambiguous error behavior: {proc:?} was previously defined as {defined_behavior}, but a later definition says {error_behavior}");
 			}
 		} else {
-			if self.primitive_procs.contains(&proc) {
-				panic!("Ambiguous proc primitivity: {proc:?} is defined as both primitive and non-primitive");
-			}
+			self.error_behaviors.insert(proc, error_behavior);
 		}
+		
 		self.current_proc = Some((proc, MatchGraphBuilder::new()))
 	}
 	
@@ -192,7 +189,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	/// Complete the grammar build and extract the constructed [`Grammar`].
 	pub fn complete(mut self) -> Grammar<PN, TN> {
 		self.complete_proc();
-		Grammar::new(self.procs, self.primitive_procs)
+		Grammar::new(self.procs, self.error_behaviors)
 	}
 
 	fn get_proc_builder(&mut self) -> &mut MatchGraphBuilder<GrammarItemName<PN, TN>> {
@@ -351,12 +348,17 @@ macro_rules! build_grammar {
 	((grammar) $builder:expr;) => {};
 	// #!x => ...
 	((grammar) $builder:expr; #!$proc_name:expr => $($tail:tt)+) => {
-		$builder.define($proc_name, true);
+		$builder.define($proc_name, $crate::parse::ProcErrorBehavior::Primitive);
+		$crate::build_grammar!((proc, grammar) $builder; $($tail)+);
+	};
+	// #?x => ...
+	((grammar) $builder:expr; #?$proc_name:expr => $($tail:tt)+) => {
+		$builder.define($proc_name, $crate::parse::ProcErrorBehavior::Hidden);
 		$crate::build_grammar!((proc, grammar) $builder; $($tail)+);
 	};
 	// #x => ...
 	((grammar) $builder:expr; #$proc_name:expr => $($tail:tt)+) => {
-		$builder.define($proc_name, false);
+		$builder.define($proc_name, $crate::parse::ProcErrorBehavior::Default);
 		$crate::build_grammar!((proc, grammar) $builder; $($tail)+);
 	};
 
@@ -374,8 +376,8 @@ macro_rules! build_grammar {
 /// # use sprout::prelude::*;
 /// # use std::fmt;
 /// #
-/// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-/// # enum Proc { Name }
+/// # #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+/// # enum Proc { Name1, Name2, Name3 }
 /// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 /// # enum Token { Name }
 /// #
@@ -383,16 +385,22 @@ macro_rules! build_grammar {
 /// # impl fmt::Display for Proc { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "") } }
 /// #
 /// grammar! {
-/// 	#Proc::Name => Token::Name, #Proc::Name /*, ... */;
-/// 	#!Proc::Name => Token::Name /*, ... */;
+/// 	#Proc::Name1 => Token::Name, #Proc::Name1 /*, ... */;
+/// 	#!Proc::Name2 => Token::Name /*, ... */;
+/// 	#?Proc::Name3 => Token::Name /*, ... */;
 /// 	//...
 /// };
 /// ```
 /// where procedure names are always prefixed with a `#`. 
 /// 
-/// Putting the `#!` prefix on a procedure definition means that that procedure is _primitive_.
-/// _Primitive_ procedures are considered to be the **simple building blocks** of your language,
-/// which means that error messages will refer to them by their name rather than their composite parts.
+/// The `#!` prefix on a procedure definition means that that procedure is _primitive_. _Primitive_ procedures are 
+/// considered to be the **simple building blocks** of your language, which means that error messages will refer to 
+/// them by their name rather than their composite parts. You should use `#!` on procedures that are so low-level that
+/// their construction can be considered an implementation detail and is not relevant to the user.
+/// 
+/// The `#?` prefix on a procedure definition means that that procedure is _hidden_, meaning that they will never appear
+/// in error messages by name. This is good to make sure your error messages don't get too abstract. You should use
+/// `#?` on procedures that are so high-level and abstract that they are not relevant to localized parsing errors.
 /// 
 /// Beyond that, for more complex structures, you can use these special expressions in the procedure definitions:
 /// 
@@ -418,7 +426,7 @@ macro_rules! build_grammar {
 /// 	Dot
 /// }
 /// 
-/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// enum Proc {
 /// 	Sentence,
 /// 	Text
@@ -472,7 +480,7 @@ mod tests {
 	}
 
 	#[test]
-	#[should_panic(expected="Ambiguous proc primitivity: 'a' is defined as both primitive and non-primitive")]
+	#[should_panic(expected="Ambiguous error behavior: 'a' was previously defined as primitive, but a later definition says default")]
 	fn should_panic_when_defining_proc_as_primitive_and_non_primitive() {
 		grammar! {
 			#!'a' => 'x';

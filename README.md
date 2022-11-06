@@ -65,7 +65,7 @@ that will end up forming the nodes of your syntax tree.
 First of all, you again create an enum:
 
 ```rust
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum Proc {
    TwoOrThreeWords,
    WordOrNumber,
@@ -96,7 +96,7 @@ use Proc::*;
 let grammar = grammar! {
    #TwoOrThreeWords => Word, Space, Word, (Space, Word)?;
    #!WordOrNumber => [Word; Number];
-   #Sequence => ([#TwoOrThreeWords; #WordOrNumber]){Space}+,
+   #?Sequence => ([#TwoOrThreeWords; #WordOrNumber]){Space}+,
 };
 ```
 
@@ -104,7 +104,12 @@ As you can see in this example, within a grammar definition, names of procedures
 
 The `#!` prefix on a procedure definition means that that procedure is _primitive_. _Primitive_ procedures are 
 considered to be the **simple building blocks** of your language, which means that error messages will refer to 
-them by their name rather than their composite parts.
+them by their name rather than their composite parts. You should use `#!` on procedures that are so low-level that
+their construction can be considered an implementation detail and is not relevant to the user.
+
+The `#?` prefix on a procedure definition means that that procedure is _hidden_, meaning that they will never appear
+in error messages by name. This is good to make sure your error messages don't get too abstract. You should use
+`#?` on procedures that are so high-level and abstract that they are not relevant to localized parsing errors.
 
 Names of tokens are simply left as-is; sequences of tokens/procedures are comma-separated. 
 

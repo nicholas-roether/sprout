@@ -8,6 +8,7 @@ pub mod parse;
 pub mod prelude;
 
 use std::fmt;
+use std::hash::Hash;
 use parse::Grammar;
 use tokenize::Alphabet;
 use trees::Tree;
@@ -137,7 +138,7 @@ impl fmt::Display for ParsingError {
 /// enum Token { X }
 ///
 /// // Define an enum for our procedures
-/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// enum Proc { AllTheX }
 /// 
 /// // Implement std::fmt::Display for our two enums for error message generation
@@ -179,12 +180,12 @@ impl fmt::Display for ParsingError {
 /// 
 /// For a detailed explanation on how to define alphabets and grammars, see [`alphabet`] and [`grammar`].
 #[derive(Debug)]
-pub struct Parser<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> {
+pub struct Parser<PN: Eq + Hash + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> {
 	alphabet: Alphabet<TN>,
 	grammar: Grammar<PN, TN>
 }
 
-impl<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> Parser<PN, TN> {
+impl<PN: Eq + Hash + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + fmt::Debug> Parser<PN, TN> {
 	/// Constructs a new parser from an [`Alphabet`] and a [`Grammar`].
 	/// 
 	/// For a complete usage example, see [`Parser`].
@@ -212,7 +213,7 @@ impl<PN: Eq + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Display + f
 	/// # impl Display for Token {
 	/// # 	fn fmt(&self, f: &mut Formatter<'_>) -> Result { write!(f, "number") }
 	/// # }
-	/// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+	/// # #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 	/// # enum Proc { Number }
 	/// #
 	/// # impl Display for Proc {

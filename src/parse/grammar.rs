@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, collections::HashMap, hash::Hash};
 
 use trees::{Forest, Tree};
 
@@ -148,18 +148,18 @@ impl<TN: Copy> ParsingSettings<TN> {
 }
 
 /// A context object that is passed to grammar item matchers during the parsing process.
-pub struct ParsingContext<'a, PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
+pub struct ParsingContext<'a, PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	grammar: &'a Grammar<PN, TN>,
 	settings: &'a ParsingSettings<TN>
 }
 
-impl<'a, PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> ParsingContext<'a, PN, TN> {
+impl<'a, PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> ParsingContext<'a, PN, TN> {
 	fn new(grammar: &'a Grammar<PN, TN>) -> Self {
 		ParsingContext { grammar, settings: &grammar.settings }
 	}
 }
 
-impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarItemName<PN, TN> {
+impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarItemName<PN, TN> {
 	fn compare_as_token(
 		token_name: TN,
 		sequence: &mut SequenceView<Token<TN>>,
@@ -210,7 +210,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	}
 }
 
-impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
+impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Matcher for GrammarItemName<PN, TN> {
 	type Item = Token<TN>;
 	type Accumulator = ASTBuilder<PN>;
 	type ContextData<'a> = ParsingContext<'a, PN, TN> where Self: 'a;
@@ -243,14 +243,38 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 /// `GrammarProc`s shouldn't be created independently from a [`Grammar`]. If you want to create a [`Grammar`]
 /// dynamically instead of using the [`crate::grammar`] macro, use [`crate::parse::GrammarBuilder`] instead. 
 #[derive(Debug)]
-pub struct GrammarProc<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
+pub struct GrammarProc<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	name: PN,
 	graph: MatchGraph<GrammarItemName<PN, TN>>
 }
 
-impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProc<PN, TN> {
+impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> GrammarProc<PN, TN> {
 	pub fn new(name: PN, graph: MatchGraph<GrammarItemName<PN, TN>>) -> Self {
 		GrammarProc { name, graph }
+	}
+}
+
+/// The error behavior of the proc. The following options are available:
+/// 
+/// | Name      | Description                                                          |
+/// |-----------|----------------------------------------------------------------------|
+/// | Default   | The default error behavior                                           |
+/// | Primitive | Errors will always appear at the level of this proc instead of below |
+/// | Hidden    | Errors will never appear at the level of this proc; always below     |
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum ProcErrorBehavior {
+	Default,
+	Primitive,
+	Hidden
+}
+
+impl fmt::Display for ProcErrorBehavior {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Default => write!(f, "default"),
+			Self::Primitive => write!(f, "primitive"),
+			Self::Hidden => write!(f, "hidden")
+		}
 	}
 }
 
@@ -273,7 +297,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 /// 	Dot
 /// }
 /// 
-/// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 /// enum Proc {
 /// 	Sentence,
 /// 	Text
@@ -295,15 +319,15 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 /// 
 /// ```
 #[derive(Debug)]
-pub struct Grammar<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
+pub struct Grammar<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> {
 	procs: Vec<GrammarProc<PN, TN>>,
-	primitives: Vec<PN>,
+	error_behaviors: HashMap<PN, ProcErrorBehavior>,
 	settings: ParsingSettings<TN>
 }
 
-impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
-	pub fn new(procs: Vec<GrammarProc<PN, TN>>, primitives: Vec<PN>) -> Self {
-		Grammar { procs, settings: ParsingSettings::new(), primitives }
+impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fmt::Display> Grammar<PN, TN> {
+	pub fn new(procs: Vec<GrammarProc<PN, TN>>, error_behaviors: HashMap<PN, ProcErrorBehavior>) -> Self {
+		Grammar { procs, settings: ParsingSettings::new(), error_behaviors }
 	}
 
 	/// Get the [`ParsingSettings`] for this `Grammar`. See the [`ParsingSettings`] documentation for more
@@ -329,7 +353,7 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 	/// #
 	/// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 	/// # enum TokenName { Word }
-	/// # #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+	/// # #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 	/// # enum Proc { Sentence }
 	/// #
 	/// # impl fmt::Display for TokenName { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { write!(f, "") } }
@@ -367,11 +391,9 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		}
 	}
 
-	/// Returns true when `proc` is a primitive.
-	/// 
-	/// See [`crate::grammar`] for more information.
-	pub fn is_primitive(&self, proc: PN) -> bool {
-		self.primitives.contains(&proc)
+	/// Get the [`ProcErrorBehavior`] for a given proc name
+	pub fn get_error_behavior(&self, proc: PN) -> ProcErrorBehavior {
+		*self.error_behaviors.get(&proc).unwrap_or(&ProcErrorBehavior::Default)
 	}
 
 	fn compare_proc(
@@ -382,24 +404,27 @@ impl<PN: PartialEq + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		context: &MatcherContext<ParsingContext<PN, TN>>
 	) -> Result<(), MatchError> {
 		let start_index = tokens.index;
-		let mut error: MatchError = MatchError::simple(proc.to_string(), start_index);
+		let mut error: Option<MatchError> = None;
+		if self.get_error_behavior(proc) != ProcErrorBehavior::Hidden {
+			error = Some(MatchError::simple(proc.to_string(), start_index));
+		}
 		acc.push_proc(proc);
 		for proc in self.procs.iter().filter(|p| p.name == proc) {
 			if let Err(new_err) = proc.graph.compare(tokens, acc, context) {
-			if new_err.index > error.index {
-				error = new_err;
-			}
-		} else {
-			acc.pop_proc();
+				if error.is_none() || new_err.index > error.as_ref().unwrap().index {
+					error = Some(new_err);
+				}
+			} else {
+				acc.pop_proc();
 				return Ok(())
 			}
 		}
 
-		if self.is_primitive(proc) {
+		if self.get_error_behavior(proc) == ProcErrorBehavior::Primitive {
 			return Err(MatchError::simple(proc.to_string(), start_index));
 		}
 
-		Err(error)
+		Err(error.expect(&format!("No definitions were found for proc {proc}")))
 	}
 }
 
@@ -528,6 +553,20 @@ mod tests {
 		]);
 		assert!(res.is_err());
 		assert_eq!(res.as_ref().unwrap_err().message, "Expected a");
+		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
+	}
+
+	#[test]
+	fn should_handle_hidden_proc_errors() {
+		let grammar = grammar! {
+			#?'a' => 'x', 'y';
+		};
+
+		let res = grammar.parse('a', &[
+			Token::new('2', "123".to_string(), TextPosition::new(1, 0, 0)),
+		]);
+		assert!(res.is_err());
+		assert_eq!(res.as_ref().unwrap_err().message, "Expected x");
 		assert_eq!(res.as_ref().unwrap_err().pos.index, 0);
 	}
 
