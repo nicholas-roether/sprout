@@ -111,7 +111,13 @@ The `#?` prefix on a procedure definition means that that procedure is _hidden_,
 in error messages by name. This is good to make sure your error messages don't get too abstract. You should use
 `#?` on procedures that are so high-level and abstract that they are not relevant to localized parsing errors.
 
-Names of tokens are simply left as-is; sequences of tokens/procedures are comma-separated. 
+Names of tokens are usually left as-is, but you can also designate tokens as _signatures_ by prefixing them with an `@`. Signature
+tokens give the current procedure priority over others, even if it only matches up to that point. This is handy if you want to define a
+certain structure that forces the parser to interpret the text in a certain way, even if it leads to an error. It is good to use
+signatures to try to capture the intuition of when a certain procedure is "obviously" meant, even if its structure is incorrect; this
+helps produce more helpful error messages.
+
+Sequences of tokens/procedures are comma-separated.
 
 You can use the following special syntax inside procedure definitions for more complex patterns:
 
