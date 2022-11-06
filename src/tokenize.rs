@@ -171,9 +171,9 @@ impl<N: Copy> Alphabet<N> {
             }
             if !match_found {
                 if index == string.len() {
-                    return Err(ParsingError::new("Unexpected end of input".to_string(), pos));
+                    return Err(ParsingError::new("Unexpected end of input".to_string(), pos, Some(string)));
                 }
-                return Err(ParsingError::new(format!("Unexpected character '{}'", string.chars().nth(index).unwrap()), pos))
+                return Err(ParsingError::new(format!("Unexpected character '{}'", string.chars().nth(index).unwrap()), pos, Some(string)))
             }
         }
         

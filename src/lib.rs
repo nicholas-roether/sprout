@@ -104,7 +104,8 @@ pub type AST<PN> = Tree<ASTNode<PN>>;
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParsingError {
 	pub message: String,
-	pub pos: TextPosition
+	pub pos: TextPosition,
+	pub source: Option<String>
 }
 
 impl ParsingError {
@@ -117,16 +118,56 @@ impl ParsingError {
 	/// Basic usage
 	/// ```
 	/// # use sprout::prelude::*;
-	/// ParsingError::new("something went wrong!".to_string(), TextPosition::new(2, 3, 5));
+	/// ParsingError::new("something went wrong!".to_string(), TextPosition::new(2, 3, 5), None);
 	/// ```
-	pub fn new(message: String, pos: TextPosition) -> Self {
-		ParsingError { message, pos }
+	pub fn new(message: String, pos: TextPosition, source: Option<String>) -> Self {
+		ParsingError { message, pos, source }
+	}
+
+	fn find_src_offset_index(&self, source: &String, incr: isize, max: isize) -> (usize, bool) {
+		let mut offset: isize = 0;
+		let mut ellipsis = false;
+		loop {
+			let char = source.chars().nth((self.pos.index as isize + offset) as usize);
+			if char.is_none() || char == Some('\n') {
+				offset -= incr;
+				break;
+			}
+
+			offset += incr;
+			if offset == max {
+				ellipsis = true;
+				break;
+			}
+		}
+		((self.pos.index as isize + offset) as usize, ellipsis)
+	}
+
+	fn format_source_pointer(&self, f: &mut fmt::Formatter<'_>, source: &String) -> fmt::Result {
+		let (first_index, start_ellipsis) = self.find_src_offset_index(source, -1, -20);
+		let (last_index, end_ellipsis) = self.find_src_offset_index(source, 1, 19);
+
+		if start_ellipsis { write!(f, "...")?; }
+		write!(f, "{}", &source[first_index .. last_index + 1])?;
+		if end_ellipsis { write!(f, "...")?; }
+		writeln!(f)?;
+
+		let mut pointer_offset = self.pos.index - first_index - 1;
+		if start_ellipsis { pointer_offset += 3 }
+
+		write!(f, "{}", " ".repeat(pointer_offset))?;
+		writeln!(f, "^")
 	}
 }
 
 impl fmt::Display for ParsingError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "Parsing error: {} ({})", self.message, self.pos)
+		writeln!(f, "Parsing error: {} ({})", self.message, self.pos)?;
+		if let Some(source) = &self.source {
+			writeln!(f)?;
+			self.format_source_pointer(f, source)?;
+		}
+		Ok(())
 	}
 }
 
@@ -234,7 +275,42 @@ impl<PN: Eq + Hash + Copy + fmt::Display + fmt::Debug, TN: Eq + Copy + fmt::Disp
 	/// 
 	/// For more details, see [`Parser`]
 	pub fn parse(&self, proc: PN, text: String) -> Result<AST<PN>, ParsingError> {
-		let tokens = self.alphabet.tokenize(text)?;
-		self.grammar.parse(proc, &tokens)
+		let result = self.alphabet.tokenize(text.clone()).and_then(|tokens| {
+			self.grammar.parse(proc, &tokens)
+		});
+		match result {
+			Ok(ast) => Ok(ast),
+			Err(mut error) => {
+				error.source = Some(text);
+				Err(error)
+			}
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{ParsingError, TextPosition};
+
+	#[test]
+	fn parsing_error_should_format_properly() {
+		let parsing_error = ParsingError::new(
+			"Error happened here".to_string(),
+			TextPosition::new(2, 3, 8),
+			Some("123\n456789\nsgfde".to_string())
+		);
+
+		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:3)\n\n456789\n   ^\n");
+	}
+
+	#[test]
+	fn parsing_error_should_format_ellipses_properly() {
+		let parsing_error = ParsingError::new(
+			"Error happened here".to_string(),
+			TextPosition::new(2, 43, 48),
+			Some("123\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsgfde".to_string())
+		);
+
+		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:43)\n\n...aaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaa...\n                      ^\n");
 	}
 }

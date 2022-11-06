@@ -391,7 +391,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 				} else {
 					tokens[error.index].pos.clone()
 				};
-				Err(ParsingError::new(format!("{error}"), position))
+				Err(ParsingError::new(format!("{error}"), position, None))
 			}
 		}
 	}
@@ -451,7 +451,7 @@ mod tests {
 		assert_eq!(result, Ok(tr(ASTNode::new('a', "123".to_string(), TextPosition::new(6, 9, 420)))));
 
 		let result2 = grammar.parse('a', &[Token::new('c', String::from("123"), TextPosition::new(6, 9, 420))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420))));
+		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420), None)));
 	}
 
 	#[test]
@@ -470,7 +470,7 @@ mod tests {
 			Token::new('b', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('e', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(4, 20, 69))));
+		assert_eq!(result2, Err(ParsingError::new("Expected c".to_string(), TextPosition::new(4, 20, 69), None)));
 	}
 
 	#[test]
@@ -487,7 +487,7 @@ mod tests {
 		));
 
 		let result2 = grammar.parse('a', &[Token::new('x', String::from("123"), TextPosition::new(6, 9, 420))]);
-		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420))));
+		assert_eq!(result2, Err(ParsingError::new("Expected a".to_string(), TextPosition::new(6, 9, 420), None)));
 	}
 
 	#[test]
@@ -511,7 +511,7 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69))));
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69), None)));
 	}
 
 	#[test]
@@ -697,7 +697,7 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('ö', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69))));
+		assert_eq!(result2, Err(ParsingError::new("Expected b".to_string(), TextPosition::new(4, 20, 69), None)));
 	}
 
 	#[test]
@@ -723,6 +723,6 @@ mod tests {
 			Token::new('x', String::from("123"), TextPosition::new(6, 9, 420)),
 			Token::new('y', String::from("breaks here"), TextPosition::new(4, 20, 69)),
 		]);
-		assert_eq!(result2, Err(ParsingError::new("Expected  ".to_string(), TextPosition::new(4, 20, 69))));
+		assert_eq!(result2, Err(ParsingError::new("Expected  ".to_string(), TextPosition::new(4, 20, 69), None)));
 	}
 }
