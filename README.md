@@ -159,3 +159,8 @@ Specifically, the output type, `AST`, is an alias for a `trees::Tree` of `ASTNod
 | pos  | `TextPosition` (has fields `line` and `char`) | The position of the start of the instance in the text |
 
 For more information about the API of `trees::Tree` see [the trees documentation](https://docs.rs/crate/trees/latest)
+
+
+## Also...
+
+Yes, I know the description of this crate falls victim to the RAS syndrome, but I don't care :)
