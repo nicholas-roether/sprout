@@ -58,8 +58,6 @@ pub fn example_from_readme() {
 
 	let tree = parser.parse(Proc::Sequence, "abc ab 123 xyz 69".to_string());
 
-	println!("{}", tree.as_ref().unwrap());
-
 	assert_eq!(
 		tree.unwrap().to_string(),
 		r#"Sequence["abc ab 123 xyz 69"]( TwoOrThreeWords["abc ab"] WordOrNumber["123"] WordOrNumber["xyz"] WordOrNumber["69"] )"#
