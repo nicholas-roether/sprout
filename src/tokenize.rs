@@ -155,6 +155,10 @@ impl<N: Copy> Alphabet<N> {
         let mut pos = TextPosition::new(1, 0, 0);
 
         loop {
+            if index == string.len() {
+                break;
+            }
+
             let mut match_found = false;
             for token_def in &self.token_defs {
                 if let Ok(token_str) = token_def.matcher.compare(&string[index..]) {
@@ -166,10 +170,10 @@ impl<N: Copy> Alphabet<N> {
                 }
             }
             if !match_found {
+                if index == string.len() {
+                    return Err(ParsingError::new("Unexpected end of input".to_string(), pos));
+                }
                 return Err(ParsingError::new(format!("Unexpected character '{}'", string.chars().nth(index).unwrap()), pos))
-            }
-            if index == string.len() {
-                break;
             }
         }
         
