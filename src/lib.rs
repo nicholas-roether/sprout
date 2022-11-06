@@ -124,8 +124,8 @@ impl ParsingError {
 		ParsingError { message, pos, source }
 	}
 
-	fn find_src_offset_index(&self, source: &String, incr: isize, max: isize) -> (usize, bool) {
-		let mut offset: isize = 0;
+	fn find_src_offset_index(&self, source: &String, start: isize, incr: isize, max: isize) -> (usize, bool) {
+		let mut offset = start;
 		let mut ellipsis = false;
 		loop {
 			let char = source.chars().nth((self.pos.index as isize + offset) as usize);
@@ -144,15 +144,15 @@ impl ParsingError {
 	}
 
 	fn format_source_pointer(&self, f: &mut fmt::Formatter<'_>, source: &String) -> fmt::Result {
-		let (first_index, start_ellipsis) = self.find_src_offset_index(source, -1, -20);
-		let (last_index, end_ellipsis) = self.find_src_offset_index(source, 1, 19);
+		let (first_index, start_ellipsis) = self.find_src_offset_index(source, -1, -1, -20);
+		let (last_index, end_ellipsis) = self.find_src_offset_index(source, 0, 1, 19);
 
 		if start_ellipsis { write!(f, "...")?; }
 		write!(f, "{}", &source[first_index .. last_index + 1])?;
 		if end_ellipsis { write!(f, "...")?; }
 		writeln!(f)?;
 
-		let mut pointer_offset = self.pos.index - first_index - 1;
+		let mut pointer_offset = self.pos.index - first_index;
 		if start_ellipsis { pointer_offset += 3 }
 
 		write!(f, "{}", " ".repeat(pointer_offset))?;
@@ -293,14 +293,25 @@ mod tests {
     use crate::{ParsingError, TextPosition};
 
 	#[test]
-	fn parsing_error_should_format_properly() {
+	fn parsing_error_with_small_char_should_format_properly() {
 		let parsing_error = ParsingError::new(
 			"Error happened here".to_string(),
-			TextPosition::new(2, 3, 8),
+			TextPosition::new(2, 1, 5),
 			Some("123\n456789\nsgfde".to_string())
 		);
 
-		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:3)\n\n456789\n   ^\n");
+		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:1)\n\n456789\n ^\n");
+	}
+
+	#[test]
+	fn parsing_error_should_format_properly() {
+		let parsing_error = ParsingError::new(
+			"Error happened here".to_string(),
+			TextPosition::new(2, 5, 9),
+			Some("123\n456789\nsgfde".to_string())
+		);
+
+		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:5)\n\n456789\n     ^\n");
 	}
 
 	#[test]
@@ -311,6 +322,6 @@ mod tests {
 			Some("123\naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsgfde".to_string())
 		);
 
-		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:43)\n\n...aaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaa...\n                      ^\n");
+		assert_eq!(parsing_error.to_string(), "Parsing error: Error happened here (2:43)\n\n...aaaaaaaaaaaaaaaa456789aaaaaaaaaaaaaaaaaa...\n                       ^\n");
 	}
 }
