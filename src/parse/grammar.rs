@@ -2,7 +2,7 @@ use std::{fmt, collections::HashMap, hash::Hash};
 
 use trees::{Forest, Tree};
 
-use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, MatcherContext, MatchError, MatchGraph, Matcher}, ParsingError, AST};
+use crate::{tokenize::Token, ASTNode, TextPosition, compare::{SequenceView, MatcherContext, MatchError, MatchGraph, Matcher, MatchResult}, ParsingError, AST};
 
 /// The name of a grammar item, meaning a token or a procedure
 #[derive(Debug, Clone)]
@@ -164,7 +164,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		token_name: TN,
 		sequence: &mut SequenceView<Token<TN>>,
 		accumulator: &mut ASTBuilder<PN>,
-	) -> Result<(), MatchError> {
+	) -> Result<MatchResult, MatchError> {
 		let error = Err(MatchError::simple(format!("{token_name}"), sequence.index));
 		if sequence.items().is_empty() {
 			return error;
@@ -175,7 +175,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		}
 		sequence.index += 1;
 		accumulator.push_token(next_token.clone());
-		Ok(())
+		Ok(MatchResult::Match)
 	}
 
 	fn compare_as_proc(
@@ -183,7 +183,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		sequence: &mut SequenceView<Token<TN>>,
 		accumulator: &mut ASTBuilder<PN>,
 		context: &MatcherContext<ParsingContext<PN, TN>>
-	) -> Result<(), MatchError> {
+	) -> Result<MatchResult, MatchError> {
 		if sequence.items().is_empty() {
 			return Err(MatchError::simple(proc_name.to_string(), sequence.index));
 		}
@@ -193,7 +193,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			accumulator,
 			&MatcherContext::new(context.data, false)
 		)?;
-		Ok(())
+		Ok(MatchResult::Match)
 	}
 
 	fn next_is_whitespace(sequence: &mut SequenceView<Token<TN>>, context: &MatcherContext<ParsingContext<PN, TN>>) -> bool {
@@ -219,7 +219,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 		&self, sequence: &mut SequenceView<Token<TN>>,
 		accumulator: &mut ASTBuilder<PN>,
 		context: &MatcherContext<ParsingContext<PN, TN>>
-	) -> Result<(), crate::compare::MatchError> {
+	) -> Result<MatchResult, MatchError> {
 		loop {
 			let result = match self {
 				GrammarItemName::Terminal(token_name) => Self::compare_as_token(*token_name, sequence, accumulator),
@@ -234,7 +234,7 @@ impl<PN: Eq + Hash + Copy + fmt::Debug + fmt::Display, TN: PartialEq + Copy + fm
 			}
 			return result;
 		}
-		Ok(())
+		Ok(MatchResult::Match)
 	}
 }
 

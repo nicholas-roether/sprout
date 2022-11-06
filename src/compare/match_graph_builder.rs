@@ -142,7 +142,7 @@ impl<M: Matcher + Clone> MatchGraphBuilder<M> {
 
 #[cfg(test)]
 mod tests {
-    use crate::compare::{Matcher, SequenceView, MatchError, MatcherContext};
+    use crate::compare::{Matcher, SequenceView, MatchError, MatcherContext, MatchResult};
 
     use super::*;
 
@@ -151,13 +151,13 @@ mod tests {
 	    type Accumulator = Vec<u32>;
 		type ContextData<'a> = ();
 
-	    fn compare(&self, sequence: &mut SequenceView<u32>, accumulator: &mut Vec<u32>, _context: &MatcherContext<()>) -> Result<(), MatchError> {
+	    fn compare(&self, sequence: &mut SequenceView<u32>, accumulator: &mut Vec<u32>, _context: &MatcherContext<()>) -> Result<MatchResult, MatchError> {
 	        if sequence.items().is_empty() || sequence.items().first().unwrap() != self {
 				return Err(MatchError::simple(self.to_string(), sequence.index));
 			}
 			sequence.index += 1;
 			accumulator.push(*self);
-			Ok(())
+			Ok(MatchResult::Match)
 	    }
 	}
 
