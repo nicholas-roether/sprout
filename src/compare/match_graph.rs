@@ -7,17 +7,16 @@ use super::SequenceView;
 #[derive(Debug, PartialEq, Eq)]
 pub struct MatchError {
 	pub expectations: Vec<String>,
-	pub depth: u32,
 	pub index: usize
 }
 
 impl MatchError {
-	pub fn new(expectations: Vec<String>, depth: u32, index: usize) -> Self {
-		MatchError { expectations, depth, index }
+	pub fn new(expectations: Vec<String>, index: usize) -> Self {
+		MatchError { expectations, index }
 	}
 
 	pub fn simple(expectation: String, index: usize) -> Self {
-		Self::new(vec![expectation], 0, index)
+		Self::new(vec![expectation], index)
 	}
 }
 
@@ -91,7 +90,7 @@ impl<M: Matcher> MatchGraph<M> {
 			let mut acc_clone = accumulator.clone();
 			match self.compare_node(edge.target(), &mut seq_clone, &mut acc_clone, context) {
 				Err(error) => {
-					errors.push(MatchError::new(error.expectations, error.depth + 1, error.index));
+					errors.push(MatchError::new(error.expectations, error.index));
 					success = false;
 				},
 				Ok(_) => {
@@ -105,7 +104,7 @@ impl<M: Matcher> MatchGraph<M> {
 
 		if success {
 			if context.exhaustive && !sequence.is_empty() {
-				return Err(MatchError::new(vec!["end of input".to_string()], 1, sequence.index))
+				return Err(MatchError::simple("end of input".to_string(), sequence.index))
 			} 
 			return Ok(());
 		}
@@ -115,20 +114,18 @@ impl<M: Matcher> MatchGraph<M> {
 		}
 
 		let mut deepest_expectations: Vec<String> = vec![];
-		let mut deepest_error_depth = 0;
 		let mut deepest_error_index = 0;
 		for mut error in errors {
-			if error.depth > deepest_error_depth {
-				deepest_error_depth = error.depth;
+			if error.index > deepest_error_index {
 				deepest_error_index = error.index;
 				deepest_expectations.clear();
 				deepest_expectations.append(&mut error.expectations);
-			} else if error.depth == deepest_error_depth {
+			} else if error.index == deepest_error_index {
 				deepest_expectations.append(&mut error.expectations);
 			}
 		}
 		
-		Err(MatchError::new(deepest_expectations, deepest_error_depth, deepest_error_index))
+		Err(MatchError::new(deepest_expectations, deepest_error_index))
 	}
 }
 
@@ -153,14 +150,12 @@ mod tests {
 
 	#[test]
 	fn match_error_should_construct_correctly() {
-		let err = MatchError::new(vec!["abc".to_string()], 69, 420);
+		let err = MatchError::new(vec!["abc".to_string()], 420);
 		assert_eq!(err.expectations, vec!["abc".to_string()]);
-		assert_eq!(err.depth, 69);
 		assert_eq!(err.index, 420);
 
 		let err = MatchError::simple("xyz".to_string(), 123);
 		assert_eq!(err.expectations, vec!["xyz".to_string()]);
-		assert_eq!(err.depth, 0);
 		assert_eq!(err.index, 123);
 	}
 
@@ -172,7 +167,7 @@ mod tests {
 
 	#[test]
 	fn match_error_with_multiple_expectations_should_display_correctly() {
-		let err = MatchError::new(vec!["123".to_string(), "456".to_string(), "789".to_string()], 0, 0);
+		let err = MatchError::new(vec!["123".to_string(), "456".to_string(), "789".to_string()], 0);
 		assert_eq!(format!("{err}"), "Expected one of: 123, 456, 789");
 	}
 
@@ -187,7 +182,7 @@ mod tests {
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 0, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 0)));
 	}
 
 	#[test]
@@ -201,7 +196,7 @@ mod tests {
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 1, 1)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 1)));
 	}
 
 	#[test]
@@ -217,7 +212,7 @@ mod tests {
 		assert_eq!(acc, "x".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 1, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 0)));
 	}
 
 	#[test]
@@ -239,7 +234,7 @@ mod tests {
 		assert_eq!(acc, "y".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['z', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 1, 0)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['z', 'b', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 0)));
 	}
 
 	#[test]
@@ -261,7 +256,7 @@ mod tests {
 		assert_eq!(acc, "y".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 2, 1)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['x', 'b', 'c']), &mut acc, &MatcherContext::new(&(), true)), Err(MatchError::new(vec!["end of input".to_string()], 1)));
 	}
 
 	#[test]
@@ -287,7 +282,7 @@ mod tests {
 		assert_eq!(acc, "ay".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'z', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 2, 1)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'z', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string(), "y".to_string()], 1)));
 	}
 
 	#[test]
@@ -317,6 +312,6 @@ mod tests {
 		assert_eq!(acc, "ayx".to_string());
 
 		let mut acc = String::new();
-		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 3, 2)));
+		assert_eq!(graph.compare(&mut SequenceView::new(&['a', 'x', 'c']), &mut acc, &MatcherContext::new(&(), false)), Err(MatchError::new(vec!["x".to_string()], 2)));
 	}
 }
